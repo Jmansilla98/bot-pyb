@@ -1,0 +1,7 @@
+services:
+  - type: worker
+    name: discord-bot
+    env: python
+    plan: free
+    runtime: python-3.11.9
+    startCommand: python bot.py
