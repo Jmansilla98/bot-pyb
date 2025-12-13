@@ -154,4 +154,4 @@ async def reclamar(ctx):
 # En Render o local:
 # DISCORD_TOKEN = tu token nuevo
 
-bot.run(os.getenv("DISCORD_TOKEN"))
+bot.run(yeq6v52Ij_dsLfPmEfnCpUs5O_cL2sfV)
