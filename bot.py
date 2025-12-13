@@ -17,7 +17,7 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 ROL_ARBITRO = "team1"   # ⚠️ NO LO CAMBIES
-OVERLAY_BASE_URL = "https://TUUSUARIO.github.io/overlay-cod"
+OVERLAY_BASE_URL = "https://Jmansilla98.github.io/overlay-cod"
 
 DATA_DIR = Path("matches")
 DATA_DIR.mkdir(exist_ok=True)
