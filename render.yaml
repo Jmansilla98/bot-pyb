@@ -3,5 +3,5 @@ services:
     name: discord-bot
     env: python
     plan: free
-    runtime: python-3.11.9
+    runtime: python-3.11
     startCommand: python bot.py
