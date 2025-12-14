@@ -5,31 +5,23 @@ import asyncio
 import json
 import base64
 import requests
-
-from fastapi import FastAPI
-import uvicorn
+import socket
 import threading
 
 # ==========================================================
-# WEB SERVER (PARA HEALTH CHECK)
+# TCP SERVER (SOLO PARA HEALTH CHECK)
 # ==========================================================
-app = FastAPI()
+def run_tcp_healthcheck():
+    host = "0.0.0.0"
+    port = int(os.getenv("PORT", 8000))
 
-@app.get("/")
-def root():
-    return {"status": "ok"}
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind((host, port))
+    s.listen(1)
 
-@app.get("/health")
-def health():
-    return {"status": "healthy"}
-
-def run_web():
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=int(os.getenv("PORT", 8000)),
-        log_level="warning"
-    )
+    while True:
+        conn, addr = s.accept()
+        conn.close()
 
 # ==========================================================
 # CONFIGURACIÓN DISCORD
@@ -53,7 +45,7 @@ OVERLAY_BASE_URL = f"https://{GITHUB_USER}.github.io/{GITHUB_REPO}"
 MATCHES_PATH = "matches"
 
 # ==========================================================
-# MAPAS
+# MAPAS Y FORMATOS
 # ==========================================================
 MAPAS = {
     "HP": ["Blackheart", "Colossus", "Den", "Exposure", "Scar"],
@@ -67,7 +59,7 @@ FORMATOS = {
 }
 
 # ==========================================================
-# ESTADO PARTIDOS
+# ESTADO DE PARTIDOS (POR CANAL)
 # ==========================================================
 matches = {}
 
@@ -111,13 +103,24 @@ class PickButton(discord.ui.Button):
 
     async def callback(self, interaction):
         match = matches[self.channel_id]
+
+        if self.mapa in match["mapas"]:
+            return await interaction.response.send_message(
+                "❌ Mapa ya seleccionado",
+                ephemeral=True
+            )
+
         match["mapas"].append(f"{self.modo} - {self.mapa}")
 
-        if len(match["mapas"]) == len(FORMATOS[match["formato"]]):
+        if len(match["mapas"]) >= len(FORMATOS[match["formato"]]):
             await interaction.response.send_message("✅ Pick & Ban terminado")
             return
 
-        await interaction.response.send_message(f"🗺️ {self.mapa} seleccionado")
+        siguiente_modo = FORMATOS[match["formato"]][len(match["mapas"])]
+        await interaction.response.send_message(
+            f"🗺️ {self.mapa} seleccionado\n➡️ Siguiente modo: **{siguiente_modo}**",
+            view=PickView(siguiente_modo, self.channel_id)
+        )
 
 class PickView(discord.ui.View):
     def __init__(self, modo, channel_id):
@@ -132,7 +135,7 @@ class PickView(discord.ui.View):
 async def start(ctx, formato: str):
     formato = formato.lower()
     if formato not in FORMATOS:
-        return await ctx.send("Formato inválido")
+        return await ctx.send("❌ Formato inválido")
 
     matches[ctx.channel.id] = {
         "formato": formato,
@@ -142,17 +145,20 @@ async def start(ctx, formato: str):
         "reclamacion": False
     }
 
-    modo = FORMATOS[formato][0]
+    primer_modo = FORMATOS[formato][0]
     await ctx.send(
         f"🎮 Pick & Ban iniciado ({formato.upper()})",
-        view=PickView(modo, ctx.channel.id)
+        view=PickView(primer_modo, ctx.channel.id)
     )
 
 @bot.command()
 async def resultado(ctx, a: int, b: int):
     match = matches.get(ctx.channel.id)
     if not match:
-        return
+        return await ctx.send("❌ No hay partido activo")
+
+    if a == b:
+        return await ctx.send("❌ No puede haber empate")
 
     if a > b:
         match["scoreA"] += 1
@@ -173,26 +179,18 @@ async def resultado(ctx, a: int, b: int):
 async def reclamar(ctx):
     match = matches.get(ctx.channel.id)
     if not match:
-        return
+        return await ctx.send("❌ No hay partido activo")
+
     match["reclamacion"] = True
     subir_overlay(ctx.channel.id, match)
     await ctx.send("🚨 Reclamación registrada")
 
 # ==========================================================
-# FASTAPI (HEALTH CHECK)
-# ==========================================================
-app = FastAPI()
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-
-# ==========================================================
-# ARRANQUE CONJUNTO
+# ARRANQUE
 # ==========================================================
 if __name__ == "__main__":
-    # Arrancar web server en hilo aparte
-    threading.Thread(target=run_web, daemon=True).start()
+    # Arrancar TCP health check
+    threading.Thread(target=run_tcp_healthcheck, daemon=True).start()
 
-    # Arrancar bot
+    # Arrancar bot Discord
     bot.run(os.getenv("DISCORD_TOKEN"))
