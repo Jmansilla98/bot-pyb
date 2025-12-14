@@ -32,13 +32,12 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 ROL_ARBITRO = "Arbitro"
 
 # ==========================================================
-# GITHUB / OVERLAY CONFIG
+# GITHUB / OVERLAY
 # ==========================================================
 GITHUB_USER = "Jmansilla98"
 GITHUB_REPO = "overlay-cod-fecod"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 MATCHES_PATH = "matches"
-OVERLAY_BASE_URL = f"https://{GITHUB_USER}.github.io/{GITHUB_REPO}"
 
 # ==========================================================
 # MAPAS
@@ -49,46 +48,34 @@ MAPAS = {
     "Overload": ["Den", "Exposure", "Scar"]
 }
 
-# ==========================================================
-# PICK & BAN STEPS
-# ==========================================================
+COLORES = {
+    "HP": discord.Color.red(),
+    "SnD": discord.Color.gold(),
+    "Overload": discord.Color.purple()
+}
+
 FORMATOS = {
     "bo3": [
-        ("ban", "HP", "A"),
-        ("ban", "HP", "B"),
-        ("pick", "HP", "A"),
-        ("side", "HP", "B"),
-        ("ban", "SnD", "B"),
-        ("ban", "SnD", "A"),
-        ("pick", "SnD", "B"),
-        ("side", "SnD", "A"),
-        ("ban", "Overload", "A"),
-        ("ban", "Overload", "B"),
-        ("side", "Overload", "A"),
+        ("ban","HP","A"),("ban","HP","B"),("pick","HP","A"),("side","HP","B"),
+        ("ban","SnD","B"),("ban","SnD","A"),("pick","SnD","B"),("side","SnD","A"),
+        ("ban","Overload","A"),("ban","Overload","B"),("side","Overload","A")
     ],
     "bo5": [
-        ("ban", "HP", "A"),
-        ("ban", "HP", "B"),
-        ("pick", "HP", "A"),
-        ("side", "HP", "B"),
-        ("pick", "HP", "B"),
-        ("side", "HP", "A"),
-        ("ban", "SnD", "B"),
-        ("ban", "SnD", "A"),
-        ("pick", "SnD", "B"),
-        ("side", "SnD", "A"),
-        ("pick", "SnD", "A"),
-        ("side", "SnD", "B"),
-        ("ban", "Overload", "A"),
-        ("ban", "Overload", "B"),
-        ("side", "Overload", "A"),
+        ("ban","HP","A"),("ban","HP","B"),("pick","HP","A"),("side","HP","B"),
+        ("pick","HP","B"),("side","HP","A"),
+        ("ban","SnD","B"),("ban","SnD","A"),("pick","SnD","B"),("side","SnD","A"),
+        ("pick","SnD","A"),("side","SnD","B"),
+        ("ban","Overload","A"),("ban","Overload","B"),("side","Overload","A")
     ]
 }
 
 # ==========================================================
-# STATE
+# ESTADO POR CANAL
 # ==========================================================
 matches = {}
+
+def es_arbitro(user):
+    return any(r.name == ROL_ARBITRO for r in user.roles)
 
 # ==========================================================
 # GITHUB
@@ -100,54 +87,74 @@ def gh_headers():
     }
 
 def subir_overlay(channel_id, data):
-    url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{MATCHES_PATH}/{channel_id}.json"
-    payload_data = {
+    payload = {
         "equipos": data["equipos"],
         "mapas": data["mapas_finales"],
         "resultados": data["resultados"],
-        "reclamacion": data["reclamacion"]
+        "reclamacion": data.get("reclamacion", False)
     }
-    content = base64.b64encode(json.dumps(payload_data, indent=2).encode()).decode()
+
+    url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{MATCHES_PATH}/{channel_id}.json"
+    content = base64.b64encode(json.dumps(payload, indent=2).encode()).decode()
+
     r = requests.get(url, headers=gh_headers())
     sha = r.json().get("sha") if r.status_code == 200 else None
-    payload = {"message": "Actualizar overlay", "content": content}
+
+    body = {"message": "update overlay", "content": content}
     if sha:
-        payload["sha"] = sha
-    requests.put(url, headers=gh_headers(), json=payload)
+        body["sha"] = sha
+
+    requests.put(url, headers=gh_headers(), json=body)
 
 # ==========================================================
-# EMBED
+# EMBEDS
 # ==========================================================
 def embed_turno(match):
-    accion, modo, equipo = FORMATOS[match["formato"]][match["paso"]]
+    accion, modo, equipo = match["flujo"][match["paso"]]
     e = discord.Embed(
         title="🎮 PICK & BAN",
-        description=f"**Acción:** {accion.upper()}\n**Modo:** {modo}",
-        color=discord.Color.blurple()
+        color=COLORES[modo]
     )
-    e.add_field(name="Turno", value=match["equipos"][equipo].mention)
+    e.add_field(name="Acción", value=accion.upper(), inline=True)
+    e.add_field(name="Modo", value=modo, inline=True)
+    e.add_field(
+        name="Turno",
+        value=match["equipos"][equipo].mention,
+        inline=True
+    )
+    e.set_footer(text=f"Paso {match['paso']+1}/{len(match['flujo'])}")
+    return e
+
+def embed_resultado(match, idx):
+    modo, mapa = match["mapas_finales"][idx]
+    e = discord.Embed(
+        title=f"📝 Resultado Mapa {idx+1}",
+        description=f"{modo} — {mapa}",
+        color=COLORES[modo]
+    )
+    e.add_field(name=match["equipos"]["A"].name, value="—", inline=True)
+    e.add_field(name=match["equipos"]["B"].name, value="—", inline=True)
     return e
 
 # ==========================================================
-# UI
+# BOTONES MAPAS
 # ==========================================================
 class MapaButton(discord.ui.Button):
     def __init__(self, mapa, modo, channel_id):
-        super().__init__(label=mapa, style=discord.ButtonStyle.primary)
+        match = matches[channel_id]
+        disabled = mapa in match["usados"][modo]
+        super().__init__(label=mapa, style=discord.ButtonStyle.primary, disabled=disabled)
         self.mapa = mapa
         self.modo = modo
         self.channel_id = channel_id
 
     async def callback(self, interaction):
         match = matches[self.channel_id]
-        if self.mapa in match["baneados"][self.modo]:
-            return await interaction.response.send_message("Mapa baneado", ephemeral=True)
+        accion, modo, _ = match["flujo"][match["paso"]]
 
-        accion, modo, equipo = FORMATOS[match["formato"]][match["paso"]]
-        if accion == "ban":
-            match["baneados"][modo].add(self.mapa)
-        elif accion == "pick":
-            match["mapas_finales"].append(f"{modo} - {self.mapa}")
+        match["usados"][modo].add(self.mapa)
+        if accion == "pick":
+            match["mapas_picked"].append((modo, self.mapa))
 
         match["paso"] += 1
         await avanzar_pyb(interaction)
@@ -158,9 +165,12 @@ class MapaView(discord.ui.View):
         for m in MAPAS[modo]:
             self.add_item(MapaButton(m, modo, channel_id))
 
+# ==========================================================
+# BOTONES BANDOS
+# ==========================================================
 class BandoButton(discord.ui.Button):
-    def __init__(self, bando, channel_id):
-        super().__init__(label=bando, style=discord.ButtonStyle.secondary)
+    def __init__(self, label, channel_id):
+        super().__init__(label=label, style=discord.ButtonStyle.secondary)
         self.channel_id = channel_id
 
     async def callback(self, interaction):
@@ -175,34 +185,9 @@ class BandoView(discord.ui.View):
         self.add_item(BandoButton("Defensa", channel_id))
 
 # ==========================================================
-# FLOW
-# ==========================================================
-async def avanzar_pyb(interaction):
-    match = matches[interaction.channel.id]
-
-    if match["paso"] >= len(FORMATOS[match["formato"]]):
-        subir_overlay(interaction.channel.id, match)
-        return await interaction.response.send_message(
-            "📝 Introduce resultados",
-            view=ResultadoView(interaction.channel.id)
-        )
-
-    accion, modo, _ = FORMATOS[match["formato"]][match["paso"]]
-    if accion in ["ban", "pick"]:
-        await interaction.response.edit_message(
-            embed=embed_turno(match),
-            view=MapaView(modo, interaction.channel.id)
-        )
-    else:
-        await interaction.response.edit_message(
-            embed=embed_turno(match),
-            view=BandoView(interaction.channel.id)
-        )
-
-# ==========================================================
 # RESULTADOS
 # ==========================================================
-class ResultadoModal(discord.ui.Modal, title="Resultado"):
+class ResultadoModal(discord.ui.Modal, title="Introducir resultado"):
     a = discord.ui.TextInput(label="Equipo A")
     b = discord.ui.TextInput(label="Equipo B")
 
@@ -212,9 +197,31 @@ class ResultadoModal(discord.ui.Modal, title="Resultado"):
 
     async def on_submit(self, interaction):
         match = matches[self.channel_id]
-        match["resultados"].append({"A": int(self.a.value), "B": int(self.b.value)})
-        subir_overlay(self.channel_id, match)
-        await interaction.response.send_message("Resultado guardado")
+        ai, bi = int(self.a.value), int(self.b.value)
+
+        match["resultados"].append({
+            "a": ai,
+            "b": bi,
+            "winner": "A" if ai > bi else "B"
+        })
+
+        idx = len(match["resultados"])
+        if idx < len(match["mapas_finales"]):
+            await interaction.response.edit_message(
+                embed=embed_resultado(match, idx),
+                view=ResultadoView(self.channel_id)
+            )
+        else:
+            subir_overlay(self.channel_id, match)
+            await interaction.response.edit_message(
+                content="🏁 Serie finalizada",
+                view=ReclamacionView(self.channel_id)
+            )
+
+class ResultadoView(discord.ui.View):
+    def __init__(self, channel_id):
+        super().__init__(timeout=None)
+        self.add_item(ResultadoButton(channel_id))
 
 class ResultadoButton(discord.ui.Button):
     def __init__(self, channel_id):
@@ -224,38 +231,82 @@ class ResultadoButton(discord.ui.Button):
     async def callback(self, interaction):
         await interaction.response.send_modal(ResultadoModal(self.channel_id))
 
-class ResultadoView(discord.ui.View):
+# ==========================================================
+# RECLAMACIÓN
+# ==========================================================
+class ReclamacionView(discord.ui.View):
     def __init__(self, channel_id):
-        super().__init__(timeout=None)
-        self.add_item(ResultadoButton(channel_id))
+        super().__init__(timeout=5)
+        self.channel_id = channel_id
+        self.add_item(ReclamacionButton(channel_id))
+
+    async def on_timeout(self):
+        self.clear_items()
+        self.add_item(SubirPartidoButton(self.channel_id))
+
+class ReclamacionButton(discord.ui.Button):
+    def __init__(self, channel_id):
+        super().__init__(label="🚨 Reclamación", style=discord.ButtonStyle.danger)
+        self.channel_id = channel_id
+
+    async def callback(self, interaction):
+        matches[self.channel_id]["reclamacion"] = True
+        await interaction.response.send_message("🎫 Ticket de reclamación creado")
+
+class SubirPartidoButton(discord.ui.Button):
+    def __init__(self, channel_id):
+        super().__init__(label="⬆️ Subir partido", style=discord.ButtonStyle.success)
+        self.channel_id = channel_id
+
+    async def callback(self, interaction):
+        await interaction.response.send_message("📤 Enviado a Challonge (placeholder)")
 
 # ==========================================================
-# COMMAND
+# FLUJO PYB
+# ==========================================================
+async def avanzar_pyb(interaction):
+    match = matches[interaction.channel.id]
+
+    if match["paso"] >= len(match["flujo"]):
+        match["mapas_finales"] = match["mapas_picked"]
+        await interaction.response.edit_message(
+            embed=embed_resultado(match, 0),
+            view=ResultadoView(interaction.channel.id)
+        )
+        return
+
+    accion, modo, _ = match["flujo"][match["paso"]]
+    view = MapaView(modo, interaction.channel.id) if accion in ("ban","pick") else BandoView(interaction.channel.id)
+    await interaction.response.edit_message(
+        embed=embed_turno(match),
+        view=view
+    )
+
+# ==========================================================
+# COMANDO PARTIDO
 # ==========================================================
 @bot.command()
-async def setpartido(ctx, team_a: discord.Role, team_b: discord.Role, formato: str):
+async def setpartido(ctx, equipo_a: discord.Role, equipo_b: discord.Role, formato: str):
     formato = formato.lower()
     if formato not in FORMATOS:
         return await ctx.send("Formato inválido")
 
     matches[ctx.channel.id] = {
-        "equipos": {"A": team_a, "B": team_b},
+        "equipos": {"A": equipo_a, "B": equipo_b},
+        "flujo": FORMATOS[formato],
         "formato": formato,
         "paso": 0,
-        "baneados": {"HP": set(), "SnD": set(), "Overload": set()},
+        "usados": {"HP": set(), "SnD": set(), "Overload": set()},
+        "mapas_picked": [],
         "mapas_finales": [],
-        "resultados": [],
-        "reclamacion": False
+        "resultados": []
     }
 
     accion, modo, _ = FORMATOS[formato][0]
-    await ctx.send(
-        embed=embed_turno(matches[ctx.channel.id]),
-        view=MapaView(modo, ctx.channel.id)
-    )
+    await ctx.send(embed=embed_turno(matches[ctx.channel.id]), view=MapaView(modo, ctx.channel.id))
 
 # ==========================================================
-# START
+# ARRANQUE
 # ==========================================================
 if __name__ == "__main__":
     threading.Thread(target=run_tcp_healthcheck, daemon=True).start()
