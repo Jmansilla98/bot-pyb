@@ -1,7 +1,6 @@
 import discord
 from discord.ext import commands
 import os
-import asyncio
 import json
 import base64
 import requests
@@ -9,7 +8,7 @@ import socket
 import threading
 
 # ==========================================================
-# TCP SERVER (SOLO PARA HEALTH CHECK)
+# TCP SERVER (SOLO PARA HEALTH CHECK – KOYEB)
 # ==========================================================
 def run_tcp_healthcheck():
     host = "0.0.0.0"
@@ -24,7 +23,7 @@ def run_tcp_healthcheck():
         conn.close()
 
 # ==========================================================
-# CONFIGURACIÓN DISCORD
+# DISCORD CONFIG
 # ==========================================================
 intents = discord.Intents.default()
 intents.message_content = True
@@ -35,7 +34,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 ROL_ARBITRO = "team1"
 
 # ==========================================================
-# CONFIG OVERLAY / GITHUB
+# GITHUB / OVERLAY CONFIG
 # ==========================================================
 GITHUB_USER = "Jmansilla98"
 GITHUB_REPO = "overlay-cod-fecod"
@@ -59,7 +58,7 @@ FORMATOS = {
 }
 
 # ==========================================================
-# ESTADO DE PARTIDOS (POR CANAL)
+# ESTADO PARTIDOS (POR CANAL)
 # ==========================================================
 matches = {}
 
@@ -92,33 +91,49 @@ def subir_overlay(channel_id, data):
     requests.put(url, headers=gh_headers(), json=payload)
 
 # ==========================================================
-# BOTONES PICK & BAN
+# PICK & BAN BUTTONS
 # ==========================================================
 class PickButton(discord.ui.Button):
     def __init__(self, mapa, modo, channel_id):
-        super().__init__(label=mapa, style=discord.ButtonStyle.primary)
+        super().__init__(
+            label=f"{modo} · {mapa}",
+            style=discord.ButtonStyle.primary
+        )
         self.mapa = mapa
         self.modo = modo
         self.channel_id = channel_id
 
-    async def callback(self, interaction):
-        match = matches[self.channel_id]
-
-        if self.mapa in match["mapas"]:
+    async def callback(self, interaction: discord.Interaction):
+        match = matches.get(self.channel_id)
+        if not match:
             return await interaction.response.send_message(
-                "❌ Mapa ya seleccionado",
+                "❌ No hay partido activo",
                 ephemeral=True
             )
 
-        match["mapas"].append(f"{self.modo} - {self.mapa}")
+        if self.mapa in match["mapas"]:
+            return await interaction.response.send_message(
+                "❌ Ese mapa ya ha sido seleccionado",
+                ephemeral=True
+            )
 
+        match["mapas"].append(self.mapa)
+
+        # Si ya se han seleccionado todos los mapas
         if len(match["mapas"]) >= len(FORMATOS[match["formato"]]):
-            await interaction.response.send_message("✅ Pick & Ban terminado")
-            return
+            subir_overlay(self.channel_id, build_overlay_data(match))
+            return await interaction.response.edit_message(
+                content="✅ **Pick & Ban terminado**",
+                view=None
+            )
 
+        # Siguiente modo
         siguiente_modo = FORMATOS[match["formato"]][len(match["mapas"])]
-        await interaction.response.send_message(
-            f"🗺️ {self.mapa} seleccionado\n➡️ Siguiente modo: **{siguiente_modo}**",
+
+        subir_overlay(self.channel_id, build_overlay_data(match))
+
+        await interaction.response.edit_message(
+            content=f"🗺️ **{self.mapa}** seleccionado\n➡️ Siguiente modo: **{siguiente_modo}**",
             view=PickView(siguiente_modo, self.channel_id)
         )
 
@@ -129,15 +144,31 @@ class PickView(discord.ui.View):
             self.add_item(PickButton(m, modo, channel_id))
 
 # ==========================================================
-# COMANDOS
+# OVERLAY DATA BUILDER
+# ==========================================================
+def build_overlay_data(match):
+    return {
+        "equipoA": match["equipoA"].name,
+        "equipoB": match["equipoB"].name,
+        "formato": match["formato"],
+        "mapas": match["mapas"],
+        "scoreA": match["scoreA"],
+        "scoreB": match["scoreB"],
+        "reclamacion": match["reclamacion"]
+    }
+
+# ==========================================================
+# COMANDO PRINCIPAL
 # ==========================================================
 @bot.command()
-async def start(ctx, formato: str):
+async def setpartido(ctx, equipoA: discord.Role, equipoB: discord.Role, formato: str):
     formato = formato.lower()
     if formato not in FORMATOS:
-        return await ctx.send("❌ Formato inválido")
+        return await ctx.send("❌ Formato inválido (usa bo3 o bo5)")
 
     matches[ctx.channel.id] = {
+        "equipoA": equipoA,
+        "equipoB": equipoB,
         "formato": formato,
         "mapas": [],
         "scoreA": 0,
@@ -146,11 +177,19 @@ async def start(ctx, formato: str):
     }
 
     primer_modo = FORMATOS[formato][0]
+
+    subir_overlay(ctx.channel.id, build_overlay_data(matches[ctx.channel.id]))
+
     await ctx.send(
-        f"🎮 Pick & Ban iniciado ({formato.upper()})",
+        f"🎮 **Pick & Ban iniciado ({formato.upper()})**\n"
+        f"🔵 {equipoA.mention} vs 🔴 {equipoB.mention}\n\n"
+        f"➡️ Modo inicial: **{primer_modo}**",
         view=PickView(primer_modo, ctx.channel.id)
     )
 
+# ==========================================================
+# RESULTADOS
+# ==========================================================
 @bot.command()
 async def resultado(ctx, a: int, b: int):
     match = matches.get(ctx.channel.id)
@@ -165,16 +204,12 @@ async def resultado(ctx, a: int, b: int):
     else:
         match["scoreB"] += 1
 
-    data = {
-        "mapas": match["mapas"],
-        "scoreA": match["scoreA"],
-        "scoreB": match["scoreB"],
-        "reclamacion": match["reclamacion"]
-    }
+    subir_overlay(ctx.channel.id, build_overlay_data(match))
+    await ctx.send("✅ Resultado guardado")
 
-    subir_overlay(ctx.channel.id, data)
-    await ctx.send("✅ Resultado guardado y overlay actualizado")
-
+# ==========================================================
+# RECLAMACIÓN
+# ==========================================================
 @bot.command()
 async def reclamar(ctx):
     match = matches.get(ctx.channel.id)
@@ -182,15 +217,12 @@ async def reclamar(ctx):
         return await ctx.send("❌ No hay partido activo")
 
     match["reclamacion"] = True
-    subir_overlay(ctx.channel.id, match)
-    await ctx.send("🚨 Reclamación registrada")
+    subir_overlay(ctx.channel.id, build_overlay_data(match))
+    await ctx.send("🚨 **Reclamación registrada**")
 
 # ==========================================================
 # ARRANQUE
 # ==========================================================
 if __name__ == "__main__":
-    # Arrancar TCP health check
     threading.Thread(target=run_tcp_healthcheck, daemon=True).start()
-
-    # Arrancar bot Discord
     bot.run(os.getenv("DISCORD_TOKEN"))
