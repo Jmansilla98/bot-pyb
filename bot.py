@@ -15,6 +15,7 @@ def run_tcp_healthcheck():
     host = "0.0.0.0"
     port = int(os.getenv("PORT", 8000))
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind((host, port))
     s.listen(1)
     while True:
@@ -69,6 +70,11 @@ FORMATOS = {
     ]
 }
 
+RESULT_ORDER = {
+    "bo3": ["HP", "SnD", "Overload"],
+    "bo5": ["HP", "SnD", "Overload", "HP", "SnD"]
+}
+
 # ==========================================================
 # ESTADO POR CANAL
 # ==========================================================
@@ -86,12 +92,13 @@ def gh_headers():
         "Accept": "application/vnd.github.v3+json"
     }
 
-def subir_overlay(channel_id, data):
+def subir_overlay(channel_id, match):
     payload = {
-        "equipos": data["equipos"],
-        "mapas": data["mapas_finales"],
-        "resultados": data["resultados"],
-        "reclamacion": data.get("reclamacion", False)
+        "equipo_a": match["equipos"]["A"].name,
+        "equipo_b": match["equipos"]["B"].name,
+        "mapas": match["mapas_finales"],
+        "resultados": match["resultados"],
+        "reclamacion": match.get("reclamacion", False)
     }
 
     url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{MATCHES_PATH}/{channel_id}.json"
@@ -113,15 +120,10 @@ def embed_turno(match):
     accion, modo, equipo = match["flujo"][match["paso"]]
     e = discord.Embed(
         title="🎮 PICK & BAN",
+        description=f"**{accion.upper()} — {modo}**",
         color=COLORES[modo]
     )
-    e.add_field(name="Acción", value=accion.upper(), inline=True)
-    e.add_field(name="Modo", value=modo, inline=True)
-    e.add_field(
-        name="Turno",
-        value=match["equipos"][equipo].mention,
-        inline=True
-    )
+    e.add_field(name="Turno", value=match["equipos"][equipo].mention)
     e.set_footer(text=f"Paso {match['paso']+1}/{len(match['flujo'])}")
     return e
 
@@ -142,8 +144,11 @@ def embed_resultado(match, idx):
 class MapaButton(discord.ui.Button):
     def __init__(self, mapa, modo, channel_id):
         match = matches[channel_id]
-        disabled = mapa in match["usados"][modo]
-        super().__init__(label=mapa, style=discord.ButtonStyle.primary, disabled=disabled)
+        super().__init__(
+            label=mapa,
+            style=discord.ButtonStyle.primary,
+            disabled=mapa in match["usados"][modo]
+        )
         self.mapa = mapa
         self.modo = modo
         self.channel_id = channel_id
@@ -166,7 +171,7 @@ class MapaView(discord.ui.View):
             self.add_item(MapaButton(m, modo, channel_id))
 
 # ==========================================================
-# BOTONES BANDOS
+# BANDOS
 # ==========================================================
 class BandoButton(discord.ui.Button):
     def __init__(self, label, channel_id):
@@ -174,8 +179,7 @@ class BandoButton(discord.ui.Button):
         self.channel_id = channel_id
 
     async def callback(self, interaction):
-        match = matches[self.channel_id]
-        match["paso"] += 1
+        matches[self.channel_id]["paso"] += 1
         await avanzar_pyb(interaction)
 
 class BandoView(discord.ui.View):
@@ -236,7 +240,7 @@ class ResultadoButton(discord.ui.Button):
 # ==========================================================
 class ReclamacionView(discord.ui.View):
     def __init__(self, channel_id):
-        super().__init__(timeout=5)
+        super().__init__(timeout=10)
         self.channel_id = channel_id
         self.add_item(ReclamacionButton(channel_id))
 
@@ -268,7 +272,22 @@ async def avanzar_pyb(interaction):
     match = matches[interaction.channel.id]
 
     if match["paso"] >= len(match["flujo"]):
-        match["mapas_finales"] = match["mapas_picked"]
+        orden = RESULT_ORDER[match["formato"]]
+        finales = []
+        hp = [m for m in match["mapas_picked"] if m[0] == "HP"]
+        snd = [m for m in match["mapas_picked"] if m[0] == "SnD"]
+        ov = [m for m in MAPAS["Overload"] if m not in [x[1] for x in match["mapas_picked"] if x[0] == "Overload"]]
+
+        for modo in orden:
+            if modo == "HP":
+                finales.append(hp.pop(0))
+            elif modo == "SnD":
+                finales.append(snd.pop(0))
+            else:
+                finales.append(("Overload", ov[0]))
+
+        match["mapas_finales"] = finales
+
         await interaction.response.edit_message(
             embed=embed_resultado(match, 0),
             view=ResultadoView(interaction.channel.id)
@@ -302,8 +321,10 @@ async def setpartido(ctx, equipo_a: discord.Role, equipo_b: discord.Role, format
         "resultados": []
     }
 
-    accion, modo, _ = FORMATOS[formato][0]
-    await ctx.send(embed=embed_turno(matches[ctx.channel.id]), view=MapaView(modo, ctx.channel.id))
+    await ctx.send(
+        embed=embed_turno(matches[ctx.channel.id]),
+        view=MapaView(FORMATOS[formato][0][1 eminent], ctx.channel.id)
+    )
 
 # ==========================================================
 # ARRANQUE
