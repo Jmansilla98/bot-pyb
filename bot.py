@@ -2,14 +2,15 @@ import discord
 from discord.ext import commands
 import os
 import asyncio
-import re
 import json
 import base64
 import requests
-from aiohttp import web
+
+from fastapi import FastAPI
+import uvicorn
 
 # ==========================================================
-# CONFIGURACIÓN GENERAL
+# CONFIGURACIÓN DISCORD
 # ==========================================================
 intents = discord.Intents.default()
 intents.message_content = True
@@ -20,21 +21,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 ROL_ARBITRO = "team1"
 
 # ==========================================================
-# HEALTH CHECK (WEB SERVICE)
-# ==========================================================
-async def healthcheck(request):
-    return web.Response(text="OK")
-
-async def start_webserver():
-    app = web.Application()
-    app.router.add_get("/", healthcheck)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", 8080)
-    await site.start()
-
-# ==========================================================
-# OVERLAY / GITHUB CONFIG
+# CONFIG OVERLAY / GITHUB
 # ==========================================================
 GITHUB_USER = "Jmansilla98"
 GITHUB_REPO = "overlay-cod-fecod"
@@ -42,10 +29,9 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
 OVERLAY_BASE_URL = f"https://{GITHUB_USER}.github.io/{GITHUB_REPO}"
 MATCHES_PATH = "matches"
-GITHUB_API = "https://api.github.com"
 
 # ==========================================================
-# MAPAS / FORMATOS
+# MAPAS
 # ==========================================================
 MAPAS = {
     "HP": ["Blackheart", "Colossus", "Den", "Exposure", "Scar"],
@@ -54,34 +40,17 @@ MAPAS = {
 }
 
 FORMATOS = {
-    "bo3": [
-        ("ban","HP","A"),("ban","HP","B"),("pick","HP","A"),("side","HP","B"),
-        ("ban","SnD","B"),("ban","SnD","A"),("pick","SnD","B"),("side","SnD","A"),
-        ("ban","Overload","A"),("ban","Overload","B"),("side","Overload","A"),
-    ],
-    "bo5": [
-        ("ban","HP","A"),("ban","HP","B"),("pick","HP","A"),("side","HP","B"),
-        ("pick","HP","B"),("side","HP","A"),
-        ("ban","SnD","B"),("ban","SnD","A"),("pick","SnD","B"),("side","SnD","A"),
-        ("pick","SnD","A"),("side","SnD","B"),
-        ("ban","Overload","A"),("ban","Overload","B"),("side","Overload","A"),
-    ]
+    "bo3": ["HP", "SnD", "Overload"],
+    "bo5": ["HP", "SnD", "Overload", "HP", "SnD"]
 }
 
 # ==========================================================
-# ESTADO POR CANAL
+# ESTADO PARTIDOS
 # ==========================================================
-pyb_channels = {}
+matches = {}
 
-def get_pyb(cid):
-    return pyb_channels.get(cid)
-
-def es_arbitro(user):
-    return ROL_ARBITRO in [r.name for r in user.roles]
-
-def rol_turno(pyb):
-    _, _, eq = FORMATOS[pyb["formato"]][pyb["paso"]]
-    return pyb["equipo_a"] if eq == "A" else pyb["equipo_b"]
+def is_ref(user):
+    return any(r.name == ROL_ARBITRO for r in user.roles)
 
 # ==========================================================
 # GITHUB HELPERS
@@ -92,112 +61,117 @@ def gh_headers():
         "Accept": "application/vnd.github.v3+json"
     }
 
-def subir_json(channel_id, data):
-    path = f"{MATCHES_PATH}/{channel_id}.json"
-    url = f"{GITHUB_API}/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{path}"
+def subir_overlay(channel_id, data):
+    url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{MATCHES_PATH}/{channel_id}.json"
     content = base64.b64encode(json.dumps(data, indent=2).encode()).decode()
 
     r = requests.get(url, headers=gh_headers())
     sha = r.json().get("sha") if r.status_code == 200 else None
 
-    payload = {"message": "Actualizar overlay", "content": content}
+    payload = {
+        "message": "Actualizar overlay",
+        "content": content
+    }
     if sha:
         payload["sha"] = sha
 
     requests.put(url, headers=gh_headers(), json=payload)
 
-def actualizar_overlay(pyb, channel_id):
-    data = {
-        "equipo_a": pyb["equipo_a"].name,
-        "equipo_b": pyb["equipo_b"].name,
-        "mapas": pyb["mapas_finales"],
-        "reclamacion": pyb.get("reclamacion", False)
-    }
-    subir_json(channel_id, data)
-
 # ==========================================================
-# PICK & BAN INTERACTIVO
+# BOTONES PICK & BAN
 # ==========================================================
-class MapaButton(discord.ui.Button):
-    def __init__(self, mapa, pyb, modo):
+class PickButton(discord.ui.Button):
+    def __init__(self, mapa, modo, channel_id):
         super().__init__(label=mapa, style=discord.ButtonStyle.primary)
         self.mapa = mapa
-        self.pyb = pyb
         self.modo = modo
+        self.channel_id = channel_id
 
     async def callback(self, interaction):
-        if rol_turno(self.pyb) not in interaction.user.roles:
-            return await interaction.response.send_message("⛔ No es tu turno", ephemeral=True)
+        match = matches[self.channel_id]
+        match["mapas"].append(f"{self.modo} - {self.mapa}")
 
-        accion, modo, _ = FORMATOS[self.pyb["formato"]][self.pyb["paso"]]
+        if len(match["mapas"]) == len(FORMATOS[match["formato"]]):
+            await interaction.response.send_message("✅ Pick & Ban terminado")
+            return
 
-        if accion == "pick":
-            self.pyb["mapas_finales"].append((modo, self.mapa))
+        await interaction.response.send_message(f"🗺️ {self.mapa} seleccionado")
 
-        self.pyb["paso"] += 1
-        actualizar_overlay(self.pyb, interaction.channel.id)
-
-        if self.pyb["paso"] >= len(FORMATOS[self.pyb["formato"]]):
-            return await interaction.response.edit_message(
-                content="✅ Pick & Ban finalizado",
-                view=None
-            )
-
-        await interaction.response.edit_message(
-            content=f"Turno de {rol_turno(self.pyb).mention}",
-            view=MapaView(self.pyb, modo)
-        )
-
-class MapaView(discord.ui.View):
-    def __init__(self, pyb, modo):
+class PickView(discord.ui.View):
+    def __init__(self, modo, channel_id):
         super().__init__(timeout=None)
         for m in MAPAS[modo]:
-            self.add_item(MapaButton(m, pyb, modo))
+            self.add_item(PickButton(m, modo, channel_id))
 
 # ==========================================================
 # COMANDOS
 # ==========================================================
 @bot.command()
-async def setequipos(ctx, equipo_a: discord.Role, equipo_b: discord.Role):
-    pyb_channels[ctx.channel.id] = {
-        "equipo_a": equipo_a,
-        "equipo_b": equipo_b,
-        "formato": None,
-        "paso": 0,
-        "mapas_finales": [],
+async def start(ctx, formato: str):
+    formato = formato.lower()
+    if formato not in FORMATOS:
+        return await ctx.send("Formato inválido")
+
+    matches[ctx.channel.id] = {
+        "formato": formato,
+        "mapas": [],
+        "scoreA": 0,
+        "scoreB": 0,
         "reclamacion": False
     }
-    await ctx.send("✅ Equipos definidos")
 
-@bot.command()
-async def startpyb(ctx, formato: str):
-    pyb = get_pyb(ctx.channel.id)
-    if not pyb:
-        return await ctx.send("❌ Usa !setequipos primero")
-
-    pyb["formato"] = formato
-    pyb["paso"] = 0
-    pyb["mapas_finales"] = []
-
-    accion, modo, _ = FORMATOS[formato][0]
+    modo = FORMATOS[formato][0]
     await ctx.send(
-        f"🎮 Pick & Ban iniciado – Turno de {rol_turno(pyb).mention}",
-        view=MapaView(pyb, modo)
+        f"🎮 Pick & Ban iniciado ({formato.upper()})",
+        view=PickView(modo, ctx.channel.id)
     )
 
 @bot.command()
+async def resultado(ctx, a: int, b: int):
+    match = matches.get(ctx.channel.id)
+    if not match:
+        return
+
+    if a > b:
+        match["scoreA"] += 1
+    else:
+        match["scoreB"] += 1
+
+    data = {
+        "mapas": match["mapas"],
+        "scoreA": match["scoreA"],
+        "scoreB": match["scoreB"],
+        "reclamacion": match["reclamacion"]
+    }
+
+    subir_overlay(ctx.channel.id, data)
+    await ctx.send("✅ Resultado guardado y overlay actualizado")
+
+@bot.command()
 async def reclamar(ctx):
-    pyb = get_pyb(ctx.channel.id)
-    pyb["reclamacion"] = True
-    actualizar_overlay(pyb, ctx.channel.id)
+    match = matches.get(ctx.channel.id)
+    if not match:
+        return
+    match["reclamacion"] = True
+    subir_overlay(ctx.channel.id, match)
     await ctx.send("🚨 Reclamación registrada")
 
 # ==========================================================
-# ARRANQUE
+# FASTAPI (HEALTH CHECK)
 # ==========================================================
-@bot.event
-async def on_ready():
-    await start_webserver()
-    print(f"Bot conectado como {bot.user}")
+app = FastAPI()
 
-bot.run(os.getenv("DISCORD_TOKEN"))
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+# ==========================================================
+# ARRANQUE CONJUNTO
+# ==========================================================
+async def main():
+    await bot.start(os.getenv("DISCORD_TOKEN"))
+
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.create_task(main())
+    uvicorn.run(app, host="0.0.0.0", port=8000)
