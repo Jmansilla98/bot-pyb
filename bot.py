@@ -24,13 +24,12 @@ def run_tcp_healthcheck():
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
-
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 ROL_ARBITRO = "Arbitro"
 
 # ==========================================================
-# MAPAS
+# MAPAS Y FORMATOS
 # ==========================================================
 MAPAS = {
     "HP": ["Blackheart", "Colossus", "Den", "Exposure", "Scar"],
@@ -38,137 +37,215 @@ MAPAS = {
     "Overload": ["Den", "Exposure", "Scar"]
 }
 
-# ==========================================================
-# PICK & BAN FLOW
-# ==========================================================
-FORMATOS = {
-    "bo5": [
-        ("ban","HP","A"),
-        ("ban","HP","B"),
-        ("pick","HP","A"),
-        ("side","HP","B"),
-        ("pick","HP","B"),
-        ("side","HP","A"),
-
-        ("ban","SnD","B"),
-        ("ban","SnD","A"),
-        ("pick","SnD","B"),
-        ("side","SnD","A"),
-        ("pick","SnD","A"),
-        ("side","SnD","B"),
-
-        ("ban","Overload","A"),
-        ("ban","Overload","B"),
-        ("decider","Overload","A")
-    ]
-}
+# BO5 fijo
+ORDEN_BO5 = ["HP", "SnD", "Overload", "HP", "SnD"]
 
 # ==========================================================
 # ESTADO POR CANAL
 # ==========================================================
-matches = {}
+partidos = {}
 
-def es_arbitro(member):
-    return any(r.name == ROL_ARBITRO for r in member.roles)
-
-def equipo_turno(match):
-    accion, _, eq = FORMATOS[match["formato"]][match["paso"]]
-    return match["teamA"] if eq == "A" else match["teamB"]
+def es_arbitro(user):
+    return any(r.name == ROL_ARBITRO for r in user.roles)
 
 # ==========================================================
-# VIEWS PICK & BAN
+# PICK & BAN FLUJO
 # ==========================================================
-class MapButton(discord.ui.Button):
-    def __init__(self, mapa, match, modo):
+def flujo_pyb():
+    return [
+        ("ban","HP","A"), ("ban","HP","B"),
+        ("pick","HP","A"), ("side","HP","B"),
+        ("pick","HP","B"), ("side","HP","A"),
+
+        ("ban","SnD","B"), ("ban","SnD","A"),
+        ("pick","SnD","B"), ("side","SnD","A"),
+        ("pick","SnD","A"), ("side","SnD","B"),
+
+        ("ban","Overload","A"), ("ban","Overload","B"),
+        ("side","Overload","A"),
+    ]
+
+# ==========================================================
+# BOTONES MAPAS
+# ==========================================================
+class MapaButton(discord.ui.Button):
+    def __init__(self, mapa, modo, canal):
         super().__init__(label=mapa, style=discord.ButtonStyle.primary)
         self.mapa = mapa
-        self.match = match
         self.modo = modo
+        self.canal = canal
 
     async def callback(self, interaction):
-        if interaction.user not in self.match["teamA"].members and interaction.user not in self.match["teamB"].members:
-            return await interaction.response.send_message("⛔ No eres jugador del partido", ephemeral=True)
+        p = partidos[self.canal]
+        accion, modo, equipo = p["flujo"][p["paso"]]
 
-        if self.mapa in self.match["usados"][self.modo]:
-            return await interaction.response.send_message("❌ Mapa ya usado", ephemeral=True)
+        if self.mapa in p["baneados"][modo]:
+            return await interaction.response.send_message("Mapa baneado", ephemeral=True)
 
-        accion, modo, _ = FORMATOS[self.match["formato"]][self.match["paso"]]
+        if accion == "ban":
+            p["baneados"][modo].append(self.mapa)
+        elif accion == "pick":
+            p["mapas"].append((modo, self.mapa))
 
-        self.match["usados"][modo].add(self.mapa)
-
-        if accion == "pick":
-            self.match["mapas_finales"].append((modo, self.mapa))
-
-        self.match["paso"] += 1
+        p["paso"] += 1
         await avanzar_pyb(interaction)
 
-class MapView(discord.ui.View):
-    def __init__(self, match, modo):
+class MapaView(discord.ui.View):
+    def __init__(self, modo, canal):
         super().__init__(timeout=None)
         for m in MAPAS[modo]:
-            self.add_item(MapButton(m, match, modo))
+            self.add_item(MapaButton(m, modo, canal))
 
-class SideButton(discord.ui.Button):
-    def __init__(self, side, match):
-        super().__init__(label=side, style=discord.ButtonStyle.secondary)
-        self.match = match
+# ==========================================================
+# BOTONES BANDOS
+# ==========================================================
+class BandoButton(discord.ui.Button):
+    def __init__(self, bando, canal):
+        super().__init__(label=bando, style=discord.ButtonStyle.secondary)
+        self.canal = canal
 
     async def callback(self, interaction):
-        self.match["paso"] += 1
+        partidos[self.canal]["paso"] += 1
         await avanzar_pyb(interaction)
 
-class SideView(discord.ui.View):
-    def __init__(self, match):
+class BandoView(discord.ui.View):
+    def __init__(self, canal):
         super().__init__(timeout=None)
-        self.add_item(SideButton("Ataque", match))
-        self.add_item(SideButton("Defensa", match))
+        for b in ["Ataque", "Defensa"]:
+            self.add_item(BandoButton(b, canal))
 
 # ==========================================================
-# PICK & BAN ADVANCE
+# AVANZAR PYB
 # ==========================================================
 async def avanzar_pyb(interaction):
-    match = matches[interaction.channel.id]
+    p = partidos[interaction.channel.id]
 
-    if match["paso"] >= len(FORMATOS[match["formato"]]):
-        return await interaction.response.send_message("✅ Pick & Ban terminado")
+    if p["paso"] >= len(p["flujo"]):
+        await interaction.response.send_message("✅ Pick & Ban finalizado. Introducir resultados.")
+        await interaction.channel.send(view=ResultadoView(interaction.channel.id))
+        return
 
-    accion, modo, _ = FORMATOS[match["formato"]][match["paso"]]
-
-    if accion in ["pick","ban"]:
-        view = MapView(match, modo)
-    else:
-        view = SideView(match)
-
-    await interaction.response.send_message(
-        f"🎮 **{accion.upper()} {modo}**\nTurno: {equipo_turno(match).mention}",
-        view=view
-    )
+    accion, modo, _ = p["flujo"][p["paso"]]
+    view = MapaView(modo, interaction.channel.id) if accion in ["ban","pick"] else BandoView(interaction.channel.id)
+    await interaction.response.send_message(f"🔹 {accion.upper()} {modo}", view=view)
 
 # ==========================================================
-# COMANDO SETPARTIDO
+# RESULTADOS
+# ==========================================================
+class ResultadoModal(discord.ui.Modal, title="Resultado"):
+    a = discord.ui.TextInput(label="Equipo A")
+    b = discord.ui.TextInput(label="Equipo B")
+
+    def __init__(self, canal):
+        super().__init__()
+        self.canal = canal
+
+    async def on_submit(self, interaction):
+        if not es_arbitro(interaction.user):
+            return await interaction.response.send_message("Solo árbitro", ephemeral=True)
+
+        a = int(self.a.value)
+        b = int(self.b.value)
+        if a == b:
+            return await interaction.response.send_message("No empate", ephemeral=True)
+
+        p = partidos[self.canal]
+        modo, mapa = p["mapas"][len(p["resultados"])]
+
+        p["resultados"].append({
+            "modo": modo,
+            "mapa": mapa,
+            "A": a,
+            "B": b
+        })
+
+        if len(p["resultados"]) == 3:
+            await interaction.response.send_message("🏁 Partido terminado", view=ReclamacionView(self.canal))
+        else:
+            await interaction.response.send_message("Resultado guardado")
+
+class ResultadoButton(discord.ui.Button):
+    def __init__(self, canal):
+        super().__init__(label="Introducir resultado", style=discord.ButtonStyle.success)
+        self.canal = canal
+
+    async def callback(self, interaction):
+        await interaction.response.send_modal(ResultadoModal(self.canal))
+
+class ResultadoView(discord.ui.View):
+    def __init__(self, canal):
+        super().__init__(timeout=None)
+        self.add_item(ResultadoButton(canal))
+
+# ==========================================================
+# RECLAMACIONES
+# ==========================================================
+class ReclamacionView(discord.ui.View):
+    def __init__(self, canal):
+        super().__init__(timeout=5)
+        self.canal = canal
+        self.add_item(ReclamacionButton(canal))
+
+    async def on_timeout(self):
+        await self.message.edit(view=SubirView(self.canal))
+
+class ReclamacionButton(discord.ui.Button):
+    def __init__(self, canal):
+        super().__init__(label="🚨 Reclamación", style=discord.ButtonStyle.danger)
+        self.canal = canal
+
+    async def callback(self, interaction):
+        await interaction.response.send_message("🚨 Reclamación abierta (Ticket King aquí)")
+        await interaction.channel.send(view=EditarView(self.canal))
+
+class EditarView(discord.ui.View):
+    def __init__(self, canal):
+        super().__init__(timeout=None)
+        self.add_item(EditarButton(canal))
+
+class EditarButton(discord.ui.Button):
+    def __init__(self, canal):
+        super().__init__(label="Editar resultado", style=discord.ButtonStyle.secondary)
+        self.canal = canal
+
+    async def callback(self, interaction):
+        partidos[self.canal]["resultados"].pop()
+        await interaction.response.send_message("Resultado eliminado, reintroducir")
+        await interaction.channel.send(view=ResultadoView(self.canal))
+
+class SubirView(discord.ui.View):
+    def __init__(self, canal):
+        super().__init__(timeout=None)
+        self.add_item(SubirButton(canal))
+
+class SubirButton(discord.ui.Button):
+    def __init__(self, canal):
+        super().__init__(label="⬆️ Subir partido", style=discord.ButtonStyle.success)
+        self.canal = canal
+
+    async def callback(self, interaction):
+        await interaction.response.send_message("[LOG] Partido enviado a Challonge")
+
+# ==========================================================
+# COMANDO PRINCIPAL
 # ==========================================================
 @bot.command()
-async def setpartido(ctx, teamA: discord.Role, teamB: discord.Role, formato: str):
-    formato = formato.lower()
-    if formato not in FORMATOS:
-        return await ctx.send("❌ Formato inválido")
-
-    matches[ctx.channel.id] = {
-        "teamA": teamA,
-        "teamB": teamB,
+async def setpartido(ctx, equipoA: discord.Role, equipoB: discord.Role, formato: str):
+    partidos[ctx.channel.id] = {
+        "equipoA": equipoA,
+        "equipoB": equipoB,
         "formato": formato,
+        "flujo": flujo_pyb(),
         "paso": 0,
-        "usados": {"HP": set(), "SnD": set(), "Overload": set()},
-        "mapas_finales": [],
-        "resultados": [],
-        "reclamacion": False
+        "mapas": [],
+        "baneados": {"HP": [], "SnD": [], "Overload": []},
+        "resultados": []
     }
 
     await ctx.send(
-        f"🎮 Partido creado: **{teamA.name} vs {teamB.name}** ({formato.upper()})"
+        f"🎮 Partido iniciado {equipoA.name} vs {equipoB.name}",
+        view=MapaView("HP", ctx.channel.id)
     )
-
-    await avanzar_pyb(ctx)
 
 # ==========================================================
 # ARRANQUE
