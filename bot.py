@@ -6,6 +6,7 @@ import re
 import json
 import base64
 import requests
+from aiohttp import web
 
 # ==========================================================
 # CONFIGURACIÓN GENERAL
@@ -19,6 +20,20 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 ROL_ARBITRO = "team1"
 
 # ==========================================================
+# HEALTH CHECK (WEB SERVICE)
+# ==========================================================
+async def healthcheck(request):
+    return web.Response(text="OK")
+
+async def start_webserver():
+    app = web.Application()
+    app.router.add_get("/", healthcheck)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 8080)
+    await site.start()
+
+# ==========================================================
 # OVERLAY / GITHUB CONFIG
 # ==========================================================
 GITHUB_USER = "Jmansilla98"
@@ -27,12 +42,10 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
 OVERLAY_BASE_URL = f"https://{GITHUB_USER}.github.io/{GITHUB_REPO}"
 MATCHES_PATH = "matches"
-HISTORY_PATH = "history"
-
 GITHUB_API = "https://api.github.com"
 
 # ==========================================================
-# MAPAS / BANDOS / COLORES
+# MAPAS / FORMATOS
 # ==========================================================
 MAPAS = {
     "HP": ["Blackheart", "Colossus", "Den", "Exposure", "Scar"],
@@ -40,17 +53,6 @@ MAPAS = {
     "Overload": ["Den", "Exposure", "Scar"]
 }
 
-BANDOS = ["Ataque", "Defensa"]
-
-COLORES = {
-    "HP": discord.Color.red(),
-    "SnD": discord.Color.gold(),
-    "Overload": discord.Color.purple()
-}
-
-# ==========================================================
-# FORMATOS PICK & BAN
-# ==========================================================
 FORMATOS = {
     "bo3": [
         ("ban","HP","A"),("ban","HP","B"),("pick","HP","A"),("side","HP","B"),
@@ -77,127 +79,80 @@ def get_pyb(cid):
 def es_arbitro(user):
     return ROL_ARBITRO in [r.name for r in user.roles]
 
-def needed_wins(formato):
-    return 2 if formato == "bo3" else 3
+def rol_turno(pyb):
+    _, _, eq = FORMATOS[pyb["formato"]][pyb["paso"]]
+    return pyb["equipo_a"] if eq == "A" else pyb["equipo_b"]
 
 # ==========================================================
 # GITHUB HELPERS
 # ==========================================================
-def github_headers():
+def gh_headers():
     return {
         "Authorization": f"token {GITHUB_TOKEN}",
         "Accept": "application/vnd.github.v3+json"
     }
 
-def subir_json(path, data, message):
+def subir_json(channel_id, data):
+    path = f"{MATCHES_PATH}/{channel_id}.json"
     url = f"{GITHUB_API}/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{path}"
     content = base64.b64encode(json.dumps(data, indent=2).encode()).decode()
 
-    r = requests.get(url, headers=github_headers())
+    r = requests.get(url, headers=gh_headers())
     sha = r.json().get("sha") if r.status_code == 200 else None
 
-    payload = {
-        "message": message,
-        "content": content
-    }
+    payload = {"message": "Actualizar overlay", "content": content}
     if sha:
         payload["sha"] = sha
 
-    requests.put(url, headers=github_headers(), json=payload)
+    requests.put(url, headers=gh_headers(), json=payload)
 
-def borrar_archivo(path):
-    url = f"{GITHUB_API}/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{path}"
-    r = requests.get(url, headers=github_headers())
-    if r.status_code != 200:
-        return
-    sha = r.json()["sha"]
-    requests.delete(url, headers=github_headers(), json={
-        "message": "Eliminar overlay activo",
-        "sha": sha
-    })
-
-# ==========================================================
-# OVERLAY STATE
-# ==========================================================
-def actualizar_overlay(pyb, channel_id, terminado=False):
-    a_wins = sum(1 for r in pyb["resultados"] if r["winner"] == "A")
-    b_wins = sum(1 for r in pyb["resultados"] if r["winner"] == "B")
-
+def actualizar_overlay(pyb, channel_id):
     data = {
-        "channel": channel_id,
         "equipo_a": pyb["equipo_a"].name,
         "equipo_b": pyb["equipo_b"].name,
-        "score_a": a_wins,
-        "score_b": b_wins,
-        "mapa_actual": None,
-        "reclamacion": pyb.get("reclamacion", False),
-        "finalizado": terminado
+        "mapas": pyb["mapas_finales"],
+        "reclamacion": pyb.get("reclamacion", False)
     }
-
-    if not terminado and len(pyb["resultados"]) < len(pyb["mapas_finales"]):
-        modo, mapa = pyb["mapas_finales"][len(pyb["resultados"])]
-        data["mapa_actual"] = f"{modo} - {mapa}"
-
-    subir_json(
-        f"{MATCHES_PATH}/{channel_id}.json",
-        data,
-        "Actualizar estado del partido"
-    )
-
-async def limpiar_overlay(channel_id):
-    await asyncio.sleep(180)
-    borrar_archivo(f"{MATCHES_PATH}/{channel_id}.json")
+    subir_json(channel_id, data)
 
 # ==========================================================
-# RESULTADOS
+# PICK & BAN INTERACTIVO
 # ==========================================================
-class ResultadoModal(discord.ui.Modal, title="Introducir resultado"):
-    res_a = discord.ui.TextInput(label="Equipo A", max_length=4)
-    res_b = discord.ui.TextInput(label="Equipo B", max_length=4)
-
-    def __init__(self, pyb):
-        super().__init__()
+class MapaButton(discord.ui.Button):
+    def __init__(self, mapa, pyb, modo):
+        super().__init__(label=mapa, style=discord.ButtonStyle.primary)
+        self.mapa = mapa
         self.pyb = pyb
+        self.modo = modo
 
-    async def on_submit(self, interaction):
-        if not es_arbitro(interaction.user):
-            return await interaction.response.send_message("⛔ Solo árbitros", ephemeral=True)
+    async def callback(self, interaction):
+        if rol_turno(self.pyb) not in interaction.user.roles:
+            return await interaction.response.send_message("⛔ No es tu turno", ephemeral=True)
 
-        if not self.res_a.value.isdigit() or not self.res_b.value.isdigit():
-            return await interaction.response.send_message("❌ Números inválidos", ephemeral=True)
+        accion, modo, _ = FORMATOS[self.pyb["formato"]][self.pyb["paso"]]
 
-        a = int(self.res_a.value)
-        b = int(self.res_b.value)
-        if a == b:
-            return await interaction.response.send_message("❌ No empate", ephemeral=True)
+        if accion == "pick":
+            self.pyb["mapas_finales"].append((modo, self.mapa))
 
-        idx = len(self.pyb["resultados"])
-        modo, mapa = self.pyb["mapas_finales"][idx]
-
-        self.pyb["resultados"].append({
-            "modo": modo,
-            "mapa": mapa,
-            "a": a,
-            "b": b,
-            "winner": "A" if a > b else "B"
-        })
-
+        self.pyb["paso"] += 1
         actualizar_overlay(self.pyb, interaction.channel.id)
 
-        a_w = sum(1 for r in self.pyb["resultados"] if r["winner"] == "A")
-        b_w = sum(1 for r in self.pyb["resultados"] if r["winner"] == "B")
-
-        if a_w >= needed_wins(self.pyb["formato"]) or b_w >= needed_wins(self.pyb["formato"]):
-            actualizar_overlay(self.pyb, interaction.channel.id, terminado=True)
-            asyncio.create_task(limpiar_overlay(interaction.channel.id))
-
-            await interaction.response.send_message(
-                f"🏆 Serie finalizada {a_w}-{b_w}\n\n"
-                f"🎥 POV A:\n{OVERLAY_BASE_URL}/pov.html?match={interaction.channel.id}&team=A\n\n"
-                f"🎥 POV B:\n{OVERLAY_BASE_URL}/pov.html?match={interaction.channel.id}&team=B"
+        if self.pyb["paso"] >= len(FORMATOS[self.pyb["formato"]]):
+            return await interaction.response.edit_message(
+                content="✅ Pick & Ban finalizado",
+                view=None
             )
-        else:
-            await interaction.response.send_message("✅ Resultado guardado")
+
+        await interaction.response.edit_message(
+            content=f"Turno de {rol_turno(self.pyb).mention}",
+            view=MapaView(self.pyb, modo)
+        )
+
+class MapaView(discord.ui.View):
+    def __init__(self, pyb, modo):
+        super().__init__(timeout=None)
+        for m in MAPAS[modo]:
+            self.add_item(MapaButton(m, pyb, modo))
 
 # ==========================================================
 # COMANDOS
@@ -208,8 +163,9 @@ async def setequipos(ctx, equipo_a: discord.Role, equipo_b: discord.Role):
         "equipo_a": equipo_a,
         "equipo_b": equipo_b,
         "formato": None,
+        "paso": 0,
         "mapas_finales": [],
-        "resultados": []
+        "reclamacion": False
     }
     await ctx.send("✅ Equipos definidos")
 
@@ -219,30 +175,29 @@ async def startpyb(ctx, formato: str):
     if not pyb:
         return await ctx.send("❌ Usa !setequipos primero")
 
-    pyb["formato"] = formato.lower()
-    pyb["mapas_finales"] = [
-        ("HP","Blackheart"),
-        ("SnD","Raid"),
-        ("Overload","Exposure")
-    ] if formato.lower() == "bo3" else [
-        ("HP","Blackheart"),
-        ("SnD","Raid"),
-        ("Overload","Exposure"),
-        ("HP","Den"),
-        ("SnD","Scar")
-    ]
+    pyb["formato"] = formato
+    pyb["paso"] = 0
+    pyb["mapas_finales"] = []
 
-    actualizar_overlay(pyb, ctx.channel.id)
-    await ctx.send("🎮 Pick & Ban iniciado")
+    accion, modo, _ = FORMATOS[formato][0]
+    await ctx.send(
+        f"🎮 Pick & Ban iniciado – Turno de {rol_turno(pyb).mention}",
+        view=MapaView(pyb, modo)
+    )
 
 @bot.command()
-async def resultado(ctx):
+async def reclamar(ctx):
     pyb = get_pyb(ctx.channel.id)
-    if not pyb:
-        return
-    await ctx.send_modal(ResultadoModal(pyb))
+    pyb["reclamacion"] = True
+    actualizar_overlay(pyb, ctx.channel.id)
+    await ctx.send("🚨 Reclamación registrada")
 
 # ==========================================================
-# RUN
+# ARRANQUE
 # ==========================================================
+@bot.event
+async def on_ready():
+    await start_webserver()
+    print(f"Bot conectado como {bot.user}")
+
 bot.run(os.getenv("DISCORD_TOKEN"))
