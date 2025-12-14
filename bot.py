@@ -2,12 +2,11 @@ import discord
 from discord.ext import commands
 import os
 import asyncio
-import re
 import socket
 import threading
 
 # ==========================================================
-# TCP HEALTH CHECK (para Web Service con TCP)
+# TCP HEALTH CHECK (PARA WEB SERVICE)
 # ==========================================================
 def run_tcp_healthcheck():
     host = "0.0.0.0"
@@ -20,7 +19,7 @@ def run_tcp_healthcheck():
         conn.close()
 
 # ==========================================================
-# CONFIGURACIÓN DISCORD
+# DISCORD CONFIG
 # ==========================================================
 intents = discord.Intents.default()
 intents.message_content = True
@@ -31,7 +30,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 ROL_ARBITRO = "Arbitro"
 
 # ==========================================================
-# MAPAS / MODOS
+# MAPAS
 # ==========================================================
 MAPAS = {
     "HP": ["Blackheart", "Colossus", "Den", "Exposure", "Scar"],
@@ -46,161 +45,155 @@ BANDOS = ["Ataque", "Defensa"]
 # ==========================================================
 FORMATOS = {
     "bo3": [
-        ("ban","HP","A"),("ban","HP","B"),("pick","HP","A"),("side","HP","B"),
-        ("ban","SnD","B"),("ban","SnD","A"),("pick","SnD","B"),("side","SnD","A"),
-        ("ban","Overload","A"),("ban","Overload","B"),("side","Overload","A"),
+        ("ban", "HP", "A"), ("ban", "HP", "B"),
+        ("pick", "HP", "A"), ("side", "HP", "B"),
+        ("ban", "SnD", "B"), ("ban", "SnD", "A"),
+        ("pick", "SnD", "B"), ("side", "SnD", "A"),
+        ("ban", "Overload", "A"), ("ban", "Overload", "B"),
+        ("side", "Overload", "A")
     ],
     "bo5": [
-        ("ban","HP","A"),("ban","HP","B"),("pick","HP","A"),("side","HP","B"),
-        ("pick","HP","B"),("side","HP","A"),
-        ("ban","SnD","B"),("ban","SnD","A"),("pick","SnD","B"),("side","SnD","A"),
-        ("pick","SnD","A"),("side","SnD","B"),
-        ("ban","Overload","A"),("ban","Overload","B"),("side","Overload","A"),
+        ("ban", "HP", "A"), ("ban", "HP", "B"),
+        ("pick", "HP", "A"), ("side", "HP", "B"),
+        ("pick", "HP", "B"), ("side", "HP", "A"),
+        ("ban", "SnD", "B"), ("ban", "SnD", "A"),
+        ("pick", "SnD", "B"), ("side", "SnD", "A"),
+        ("pick", "SnD", "A"), ("side", "SnD", "B"),
+        ("ban", "Overload", "A"), ("ban", "Overload", "B"),
+        ("side", "Overload", "A")
     ]
 }
 
 # ==========================================================
 # ESTADO POR CANAL
 # ==========================================================
-pyb_channels = {}
+matches = {}
 
-def get_pyb(cid):
-    return pyb_channels.get(cid)
-
-def es_arbitro(user):
-    return any(r.name == ROL_ARBITRO for r in user.roles)
-
-def rol_actual(pyb):
-    _, _, eq = FORMATOS[pyb["formato"]][pyb["paso"]]
-    return pyb["equipo_a"] if eq == "A" else pyb["equipo_b"]
+def current_team(match):
+    _, _, eq = FORMATOS[match["formato"]][match["step"]]
+    return match["teamA"] if eq == "A" else match["teamB"]
 
 # ==========================================================
 # EMBEDS
 # ==========================================================
-def embed_turno(pyb):
-    accion, modo, _ = FORMATOS[pyb["formato"]][pyb["paso"]]
-    e = discord.Embed(
-        title=f"{accion.upper()} {modo}",
-        description=f"Turno: {rol_actual(pyb).mention}"
-    )
+def embed_turn(match):
+    action, mode, _ = FORMATOS[match["formato"]][match["step"]]
+    e = discord.Embed(title=f"{action.upper()} {mode}")
+    e.add_field(name="Turno", value=current_team(match).mention, inline=False)
     e.add_field(
         name="Equipos",
-        value=f"🔵 {pyb['equipo_a'].mention}\n🔴 {pyb['equipo_b'].mention}",
+        value=f"🔵 {match['teamA'].mention}\n🔴 {match['teamB'].mention}",
         inline=False
     )
     return e
 
 # ==========================================================
-# BOTONES MAPAS
+# BOTONES
 # ==========================================================
-class MapaButton(discord.ui.Button):
-    def __init__(self, mapa, modo, pyb):
+class MapButton(discord.ui.Button):
+    def __init__(self, mapa, mode, match):
         super().__init__(
             label=mapa,
             style=discord.ButtonStyle.primary,
-            disabled=mapa in pyb["usados"][modo]
+            disabled=mapa in match["banned"][mode]
         )
         self.mapa = mapa
-        self.modo = modo
-        self.pyb = pyb
+        self.mode = mode
+        self.match = match
 
-    async def callback(self, interaction):
-        if rol_actual(self.pyb) not in interaction.user.roles:
-            return await interaction.response.send_message(
-                "⛔ No es tu turno", ephemeral=True
-            )
+    async def callback(self, interaction: discord.Interaction):
+        if current_team(self.match) not in interaction.user.roles:
+            return await interaction.response.send_message("⛔ No es tu turno", ephemeral=True)
 
-        accion, modo, _ = FORMATOS[self.pyb["formato"]][self.pyb["paso"]]
+        action, mode, _ = FORMATOS[self.match["formato"]][self.match["step"]]
 
-        # BAN o PICK SOLO AFECTA AL MODO ACTUAL
-        self.pyb["usados"][modo].add(self.mapa)
+        if action == "ban":
+            self.match["banned"][mode].add(self.mapa)
 
-        if accion == "pick":
-            self.pyb["mapas_finales"].append((modo, self.mapa))
+        if action == "pick":
+            self.match["picked"].append((mode, self.mapa))
 
-        self.pyb["paso"] += 1
-        await avanzar_pyb(interaction)
+        self.match["step"] += 1
+        await advance(interaction)
 
-class MapaView(discord.ui.View):
-    def __init__(self, pyb, modo):
+class SideButton(discord.ui.Button):
+    def __init__(self, side, match):
+        super().__init__(label=side, style=discord.ButtonStyle.secondary)
+        self.match = match
+
+    async def callback(self, interaction: discord.Interaction):
+        if current_team(self.match) not in interaction.user.roles:
+            return await interaction.response.send_message("⛔ No es tu turno", ephemeral=True)
+
+        self.match["step"] += 1
+        await advance(interaction)
+
+class MapView(discord.ui.View):
+    def __init__(self, match, mode):
         super().__init__(timeout=None)
-        for m in MAPAS[modo]:
-            self.add_item(MapaButton(m, modo, pyb))
+        for m in MAPAS[mode]:
+            self.add_item(MapButton(m, mode, match))
 
-# ==========================================================
-# BOTONES BANDOS
-# ==========================================================
-class BandoButton(discord.ui.Button):
-    def __init__(self, bando, pyb):
-        super().__init__(label=bando, style=discord.ButtonStyle.secondary)
-        self.pyb = pyb
-
-    async def callback(self, interaction):
-        if rol_actual(self.pyb) not in interaction.user.roles:
-            return await interaction.response.send_message(
-                "⛔ No es tu turno", ephemeral=True
-            )
-
-        self.pyb["paso"] += 1
-        await avanzar_pyb(interaction)
-
-class BandoView(discord.ui.View):
-    def __init__(self, pyb):
+class SideView(discord.ui.View):
+    def __init__(self, match):
         super().__init__(timeout=None)
-        for b in BANDOS:
-            self.add_item(BandoButton(b, pyb))
+        for s in BANDOS:
+            self.add_item(SideButton(s, match))
 
 # ==========================================================
-# FLUJO PICK & BAN
+# FLUJO
 # ==========================================================
-async def avanzar_pyb(interaction):
-    pyb = get_pyb(interaction.channel.id)
+async def advance(interaction: discord.Interaction):
+    match = matches[interaction.channel.id]
 
-    if pyb["paso"] >= len(FORMATOS[pyb["formato"]]):
+    if match["step"] >= len(FORMATOS[match["formato"]]):
         return await interaction.response.edit_message(
-            content="✅ Pick & Ban finalizado",
+            content="🎮 Pick & Ban finalizado",
             embed=None,
             view=None
         )
 
-    accion, modo, _ = FORMATOS[pyb["formato"]][pyb["paso"]]
+    action, mode, _ = FORMATOS[match["formato"]][match["step"]]
 
-    if accion in ["pick", "ban"]:
-        view = MapaView(pyb, modo)
+    if action in ["ban", "pick"]:
+        await interaction.response.edit_message(
+            embed=embed_turn(match),
+            view=MapView(match, mode)
+        )
     else:
-        view = BandoView(pyb)
-
-    await interaction.response.edit_message(
-        embed=embed_turno(pyb),
-        view=view
-    )
+        await interaction.response.edit_message(
+            embed=embed_turn(match),
+            view=SideView(match)
+        )
 
 # ==========================================================
 # COMANDOS
 # ==========================================================
 @bot.command()
-async def setpartido(ctx, equipo_a: discord.Role, equipo_b: discord.Role, formato: str):
+async def setpartido(ctx, teamA: discord.Role, teamB: discord.Role, formato: str):
     formato = formato.lower()
     if formato not in FORMATOS:
-        return await ctx.send("❌ Formato inválido (bo3 / bo5)")
+        return await ctx.send("❌ Formato inválido")
 
-    pyb_channels[ctx.channel.id] = {
-        "equipo_a": equipo_a,
-        "equipo_b": equipo_b,
+    matches[ctx.channel.id] = {
+        "teamA": teamA,
+        "teamB": teamB,
         "formato": formato,
-        "paso": 0,
-        "usados": {
+        "step": 0,
+        "banned": {
             "HP": set(),
             "SnD": set(),
             "Overload": set()
         },
-        "mapas_finales": []
+        "picked": []
     }
 
-    _, modo, _ = FORMATOS[formato][0]
+    match = matches[ctx.channel.id]
+    action, mode, _ = FORMATOS[formato][0]
+
     await ctx.send(
-        embed=embed_turno(pyb_channels[ctx.channel.id]),
-        view=MapaView(pyb_channels[ctx.channel.id], modo)
+        embed=embed_turn(match),
+        view=MapView(match, mode)
     )
 
 # ==========================================================
