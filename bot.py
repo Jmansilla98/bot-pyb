@@ -8,6 +8,28 @@ import requests
 
 from fastapi import FastAPI
 import uvicorn
+import threading
+
+# ==========================================================
+# WEB SERVER (PARA HEALTH CHECK)
+# ==========================================================
+app = FastAPI()
+
+@app.get("/")
+def root():
+    return {"status": "ok"}
+
+@app.get("/health")
+def health():
+    return {"status": "healthy"}
+
+def run_web():
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 8000)),
+        log_level="warning"
+    )
 
 # ==========================================================
 # CONFIGURACIÓN DISCORD
@@ -168,10 +190,9 @@ def health():
 # ==========================================================
 # ARRANQUE CONJUNTO
 # ==========================================================
-async def main():
-    await bot.start(os.getenv("DISCORD_TOKEN"))
-
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.create_task(main())
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Arrancar web server en hilo aparte
+    threading.Thread(target=run_web, daemon=True).start()
+
+    # Arrancar bot
+    bot.run(os.getenv("DISCORD_TOKEN"))
