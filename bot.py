@@ -258,7 +258,7 @@ class SubirButton(discord.ui.Button):
 async def avanzar_pyb(i):
     m = matches[i.channel.id]
     if m["paso"] >= len(m["flujo"]):
-        m["mapas_finales"] = m["mapas_picked"]
+        m["mapas_finales"] = construir_mapas_finales(m)
         await i.response.edit_message(
             embeds=[embed_resumen_mapas(m), embed_resultado(m, 0)],
             view=ResultadoView(i.channel.id)
@@ -268,6 +268,22 @@ async def avanzar_pyb(i):
     accion, modo, _ = m["flujo"][m["paso"]]
     view = MapaView(modo, i.channel.id) if accion in ("ban","pick") else BandoView(i.channel.id)
     await i.response.edit_message(embed=embed_turno(m), view=view)
+
+
+def construir_mapas_finales(m):
+    orden = ORDEN_RESULTADOS[:len(m["mapas_picked"])]
+
+    resultado = []
+    usados = { "HP": [], "SnD": [], "Overload": [] }
+
+    for modo, mapa in m["mapas_picked"]:
+        usados[modo].append(mapa)
+
+    for modo in orden:
+        resultado.append((modo, usados[modo].pop(0)))
+
+    return resultado
+
 
 # ===========================
 # COMANDO
