@@ -1,5 +1,16 @@
 # ===========================
-# bot.py — VERSION FINAL ESTABLE
+# bot.py — VERSION ESTABLE FINAL
+# ===========================
+# ✔ Pick & Ban BO3 / BO5 correcto
+# ✔ Mapas baneados por modo
+# ✔ UI limpia (no duplicados)
+# ✔ Orden resultados: HP, SnD, Overload, HP, SnD
+# ✔ Modal de resultados SIN error 404
+# ✔ Embed fijo + embed de resultado
+# ✔ Overlay se SUBE a GitHub y SE MANDA LINK
+# ✔ Espera 5s tras finalizar
+# ✔ Multicanal
+# ✔ TCP health check (Koyeb)
 # ===========================
 
 import discord
@@ -7,7 +18,7 @@ from discord.ext import commands
 import os, json, base64, requests, socket, threading, asyncio
 
 # ===========================
-# TCP HEALTH CHECK (KOYEB)
+# TCP HEALTH CHECK
 # ===========================
 def run_tcp_healthcheck():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -49,7 +60,7 @@ def subir_overlay(channel_id, payload):
     r = requests.get(url, headers=gh_headers())
     sha = r.json().get("sha") if r.status_code == 200 else None
 
-    body = {"message": "update match overlay", "content": content}
+    body = {"message": "update overlay", "content": content}
     if sha:
         body["sha"] = sha
 
@@ -84,8 +95,6 @@ FLUJOS = {
         ("ban","Overload","A"),("ban","Overload","B"),("side","Overload","A"),
     ]
 }
-
-ORDEN_RESULTADOS = ["HP","SnD","Overload","HP","SnD"]
 
 # ===========================
 # ESTADO POR CANAL
@@ -178,15 +187,17 @@ class ResultadoModal(discord.ui.Modal, title="Introducir resultado"):
         super().__init__()
         self.cid = cid
 
-    async def on_submit(self, i):
+    async def on_submit(self, interaction):
         m = matches[self.cid]
         ai, bi = int(self.a.value), int(self.b.value)
         m["resultados"].append({"A": ai, "B": bi})
-
         idx = len(m["resultados"])
 
+        await interaction.response.defer()
+
         if idx < len(m["mapas_finales"]):
-            await i.response.send_message(
+            await interaction.followup.edit_message(
+                m["msg_id"],
                 embeds=[embed_resumen_mapas(m), embed_resultado(m, idx)],
                 view=ResultadoView(self.cid)
             )
@@ -199,9 +210,11 @@ class ResultadoModal(discord.ui.Modal, title="Introducir resultado"):
             }
             subir_overlay(self.cid, payload)
             await asyncio.sleep(5)
-            await i.response.send_message(
-                f"🏁 Partido finalizado\n{OVERLAY_BASE}/{MATCHES_PATH}/{self.cid}.json",
-                view=SubirView(self.cid)
+            await interaction.followup.edit_message(
+                m["msg_id"],
+                content=f"🏁 Partido finalizado\n{OVERLAY_BASE}/{MATCHES_PATH}/{self.cid}.json",
+                view=SubirView(self.cid),
+                embeds=[]
             )
 
 class ResultadoButton(discord.ui.Button):
@@ -231,7 +244,7 @@ class SubirButton(discord.ui.Button):
         self.cid = cid
 
     async def callback(self, i):
-        await i.response.send_message("📤 Enviado a Challonge (placeholder)")
+        await i.response.send_message("📤 Enviado a Challonge (placeholder)", ephemeral=True)
 
 # ===========================
 # FLUJO PYB
@@ -240,12 +253,12 @@ async def avanzar_pyb(i):
     m = matches[i.channel.id]
     if m["paso"] >= len(m["flujo"]):
         m["mapas_finales"] = m["mapas_picked"]
-        await i.response.edit_message(
+        msg = await i.response.edit_message(
             embeds=[embed_resumen_mapas(m), embed_resultado(m, 0)],
             view=ResultadoView(i.channel.id)
         )
+        m["msg_id"] = msg.id
         return
-
     accion, modo, _ = m["flujo"][m["paso"]]
     view = MapaView(modo, i.channel.id) if accion in ("ban","pick") else BandoView(i.channel.id)
     await i.response.edit_message(embed=embed_turno(m), view=view)
@@ -265,10 +278,12 @@ async def setpartido(ctx, equipo_a: discord.Role, equipo_b: discord.Role, format
         "usados": {"HP": set(), "SnD": set(), "Overload": set()},
         "mapas_picked": [],
         "mapas_finales": [],
-        "resultados": []
+        "resultados": [],
+        "msg_id": None
     }
     _, modo, _ = FLUJOS[formato][0]
-    await ctx.send(embed=embed_turno(matches[ctx.channel.id]), view=MapaView(modo, ctx.channel.id))
+    msg = await ctx.send(embed=embed_turno(matches[ctx.channel.id]), view=MapaView(modo, ctx.channel.id))
+    matches[ctx.channel.id]["msg_id"] = msg.id
 
 # ===========================
 # ARRANQUE
