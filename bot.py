@@ -1,16 +1,5 @@
 # ===========================
-# bot.py — VERSION ESTABLE
-# ===========================
-# ✔ Pick & Ban BO3 / BO5 correcto
-# ✔ Orden de resultados: HP, SnD, Overload, HP, SnD
-# ✔ Mapas baneados solo por modo
-# ✔ Turnos mencionando al equipo
-# ✔ Resultados por modal
-# ✔ Embed fijo con mapas antes de resultados
-# ✔ Overlay se SUBE a GitHub y SE MANDA LINK
-# ✔ Espera 5s tras finalizar para botones finales
-# ✔ TCP health check (Koyeb OK)
-# ✔ Multicanal (estado por canal)
+# bot.py — VERSION FINAL ESTABLE
 # ===========================
 
 import discord
@@ -103,9 +92,6 @@ ORDEN_RESULTADOS = ["HP","SnD","Overload","HP","SnD"]
 # ===========================
 matches = {}
 
-def es_arbitro(user):
-    return any(r.name == ROL_ARBITRO for r in user.roles)
-
 # ===========================
 # EMBEDS
 # ===========================
@@ -196,9 +182,11 @@ class ResultadoModal(discord.ui.Modal, title="Introducir resultado"):
         m = matches[self.cid]
         ai, bi = int(self.a.value), int(self.b.value)
         m["resultados"].append({"A": ai, "B": bi})
+
         idx = len(m["resultados"])
+
         if idx < len(m["mapas_finales"]):
-            await i.response.edit_message(
+            await i.response.send_message(
                 embeds=[embed_resumen_mapas(m), embed_resultado(m, idx)],
                 view=ResultadoView(self.cid)
             )
@@ -211,8 +199,8 @@ class ResultadoModal(discord.ui.Modal, title="Introducir resultado"):
             }
             subir_overlay(self.cid, payload)
             await asyncio.sleep(5)
-            await i.response.edit_message(
-                content=f"🏁 Partido finalizado\n{OVERLAY_BASE}/{MATCHES_PATH}/{self.cid}.json",
+            await i.response.send_message(
+                f"🏁 Partido finalizado\n{OVERLAY_BASE}/{MATCHES_PATH}/{self.cid}.json",
                 view=SubirView(self.cid)
             )
 
@@ -257,10 +245,9 @@ async def avanzar_pyb(i):
             view=ResultadoView(i.channel.id)
         )
         return
+
     accion, modo, _ = m["flujo"][m["paso"]]
     view = MapaView(modo, i.channel.id) if accion in ("ban","pick") else BandoView(i.channel.id)
-   
-
     await i.response.edit_message(embed=embed_turno(m), view=view)
 
 # ===========================
@@ -282,10 +269,6 @@ async def setpartido(ctx, equipo_a: discord.Role, equipo_b: discord.Role, format
     }
     _, modo, _ = FLUJOS[formato][0]
     await ctx.send(embed=embed_turno(matches[ctx.channel.id]), view=MapaView(modo, ctx.channel.id))
-     await ctx.send(
-  f"🎥 Overlay Pick & Ban:\n"
-  f"{OVERLAY_BASE}/index.html?match={ctx.channel.id}"
-)
 
 # ===========================
 # ARRANQUE
