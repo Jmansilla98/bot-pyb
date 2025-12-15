@@ -259,6 +259,8 @@ async def avanzar_pyb(i):
         return
     accion, modo, _ = m["flujo"][m["paso"]]
     view = MapaView(modo, i.channel.id) if accion in ("ban","pick") else BandoView(i.channel.id)
+   
+
     await i.response.edit_message(embed=embed_turno(m), view=view)
 
 # ===========================
@@ -280,6 +282,10 @@ async def setpartido(ctx, equipo_a: discord.Role, equipo_b: discord.Role, format
     }
     _, modo, _ = FLUJOS[formato][0]
     await ctx.send(embed=embed_turno(matches[ctx.channel.id]), view=MapaView(modo, ctx.channel.id))
+     await ctx.send(
+  f"🎥 Overlay Pick & Ban:\n"
+  f"{OVERLAY_BASE}/index.html?match={ctx.channel.id}"
+)
 
 # ===========================
 # ARRANQUE
