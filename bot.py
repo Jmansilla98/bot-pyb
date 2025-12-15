@@ -1,18 +1,16 @@
 # ===========================
-# bot.py — VERSION ESTABLE FINAL
+# bot.py — VERSION ESTABLE Y CORREGIDA
 # ===========================
 # ✔ Pick & Ban BO3 / BO5 correcto
-# ✔ Orden resultados: HP, SnD, Overload, HP, SnD
-# ✔ Mapas baneados solo por modo
-# ✔ Turnos mencionando equipo
-# ✔ Resultados por modal (sin errores interaction)
-# ✔ Embed bonito Pick & Ban
-# ✔ Embed fijo resumen mapas antes de resultados
-# ✔ Overlay JSON subido a GitHub
-# ✔ Link overlay enviado al chat
-# ✔ Espera 5s tras finalizar
+# ✔ Mapas baneados solo afectan a su modo
+# ✔ No duplicados de mensajes
+# ✔ Orden de resultados: HP, SnD, Overload, HP, SnD
+# ✔ Mapas de la serie bien ordenados
+# ✔ Resultados por modal (sin errores de interacción)
+# ✔ Overlay se SUBE a GitHub y SE MANDA LINK
+# ✔ Espera 5s tras finalizar para botones finales
 # ✔ TCP health check (Koyeb)
-# ✔ Multicanal estable
+# ✔ Multicanal
 # ===========================
 
 import discord
@@ -20,7 +18,7 @@ from discord.ext import commands
 import os, json, base64, requests, socket, threading, asyncio
 
 # ===========================
-# TCP HEALTH CHECK
+# TCP HEALTH CHECK (KOYEB)
 # ===========================
 def run_tcp_healthcheck():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -62,7 +60,7 @@ def subir_overlay(channel_id, payload):
     r = requests.get(url, headers=gh_headers())
     sha = r.json().get("sha") if r.status_code == 200 else None
 
-    body = {"message": "update overlay", "content": content}
+    body = {"message": "update match overlay", "content": content}
     if sha:
         body["sha"] = sha
 
@@ -87,26 +85,50 @@ FLUJOS = {
     "bo3": [
         ("ban","HP","A"),("ban","HP","B"),("pick","HP","A"),("side","HP","B"),
         ("ban","SnD","B"),("ban","SnD","A"),("pick","SnD","B"),("side","SnD","A"),
-        ("ban","Overload","A"),("ban","Overload","B"),("side","Overload","A")
+        ("ban","Overload","A"),("ban","Overload","B"),("side","Overload","A"),
     ],
     "bo5": [
         ("ban","HP","A"),("ban","HP","B"),("pick","HP","A"),("side","HP","B"),
         ("pick","HP","B"),("side","HP","A"),
         ("ban","SnD","B"),("ban","SnD","A"),("pick","SnD","B"),("side","SnD","A"),
         ("pick","SnD","A"),("side","SnD","B"),
-        ("ban","Overload","A"),("ban","Overload","B"),("side","Overload","A")
+        ("ban","Overload","A"),("ban","Overload","B"),("side","Overload","A"),
     ]
 }
 
-ORDEN_RESULTADOS = ["HP","SnD","Overload","HP","SnD"]
+ORDEN_RESULTADOS = ["HP", "SnD", "Overload", "HP", "SnD"]
 
 # ===========================
 # ESTADO POR CANAL
 # ===========================
 matches = {}
 
-def es_arbitro(user):
-    return any(r.name == ROL_ARBITRO for r in user.roles)
+# ===========================
+# HELPERS
+# ===========================
+def construir_mapas_finales(m):
+    resultado = []
+
+    picks_hp = [m for m in m["mapas_picked"] if m[0] == "HP"]
+    picks_snd = [m for m in m["mapas_picked"] if m[0] == "SnD"]
+
+    resto_over = [x for x in MAPAS["Overload"] if x not in m["usados"]["Overload"]]
+
+    if m["formato"] == "bo3":
+        resultado = [
+            picks_hp[0],
+            picks_snd[0],
+            ("Overload", resto_over[0])
+        ]
+    else:
+        resultado = [
+            picks_hp[0],
+            picks_snd[0],
+            ("Overload", resto_over[0]),
+            picks_hp[1],
+            picks_snd[1]
+        ]
+    return resultado
 
 # ===========================
 # EMBEDS
@@ -124,11 +146,7 @@ def embed_resumen_mapas(m):
     txt = ""
     for i,(modo,mapa) in enumerate(m["mapas_finales"], start=1):
         txt += f"Mapa {i}: **{modo} — {mapa}**\n"
-    return discord.Embed(
-        title="🗺️ Mapas de la serie",
-        description=txt,
-        color=discord.Color.blurple()
-    )
+    return discord.Embed(title="🗺️ Mapas de la serie", description=txt, color=discord.Color.blurple())
 
 def embed_resultado(m, idx):
     modo, mapa = m["mapas_finales"][idx]
@@ -218,8 +236,8 @@ class ResultadoModal(discord.ui.Modal, title="Introducir resultado"):
             }
             subir_overlay(self.cid, payload)
             await asyncio.sleep(5)
-            await i.followup.send(
-                f"🏁 Partido finalizado\n{OVERLAY_BASE}/{MATCHES_PATH}/{self.cid}.json",
+            await i.response.edit_message(
+                content=f"🏁 Partido finalizado\n{OVERLAY_BASE}/{MATCHES_PATH}/{self.cid}.json",
                 view=SubirView(self.cid)
             )
 
@@ -264,26 +282,9 @@ async def avanzar_pyb(i):
             view=ResultadoView(i.channel.id)
         )
         return
-
     accion, modo, _ = m["flujo"][m["paso"]]
     view = MapaView(modo, i.channel.id) if accion in ("ban","pick") else BandoView(i.channel.id)
     await i.response.edit_message(embed=embed_turno(m), view=view)
-
-
-def construir_mapas_finales(m):
-    orden = ORDEN_RESULTADOS[:len(m["mapas_picked"])]
-
-    resultado = []
-    usados = { "HP": [], "SnD": [], "Overload": [] }
-
-    for modo, mapa in m["mapas_picked"]:
-        usados[modo].append(mapa)
-
-    for modo in orden:
-        resultado.append((modo, usados[modo].pop(0)))
-
-    return resultado
-
 
 # ===========================
 # COMANDO
@@ -293,17 +294,16 @@ async def setpartido(ctx, equipo_a: discord.Role, equipo_b: discord.Role, format
     formato = formato.lower()
     if formato not in FLUJOS:
         return
-
     matches[ctx.channel.id] = {
         "equipos": {"A": equipo_a, "B": equipo_b},
         "flujo": FLUJOS[formato],
+        "formato": formato,
         "paso": 0,
         "usados": {"HP": set(), "SnD": set(), "Overload": set()},
         "mapas_picked": [],
         "mapas_finales": [],
         "resultados": []
     }
-
     _, modo, _ = FLUJOS[formato][0]
     await ctx.send(embed=embed_turno(matches[ctx.channel.id]), view=MapaView(modo, ctx.channel.id))
 
