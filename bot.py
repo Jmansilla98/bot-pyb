@@ -1,17 +1,5 @@
 # ===========================
-# bot.py — VERSION ESTABLE FINAL
-# ===========================
-# ✔ Pick & Ban BO3 / BO5 correcto
-# ✔ Orden resultados: HP, SnD, Overload, HP, SnD
-# ✔ Mapas baneados SOLO por modo
-# ✔ UI limpia (sin duplicados)
-# ✔ Turnos mencionando al equipo
-# ✔ Resultados por modal (sin 404)
-# ✔ Embed fijo con mapas antes de resultados
-# ✔ Overlay se SUBE a GitHub y SE MANDA LINK
-# ✔ Espera 5s tras finalizar
-# ✔ TCP health check (Koyeb)
-# ✔ Multicanal real
+# bot.py — FINAL ESTABLE
 # ===========================
 
 import discord
@@ -86,14 +74,14 @@ FLUJOS = {
     "bo3": [
         ("ban","HP","A"),("ban","HP","B"),("pick","HP","A"),("side","HP","B"),
         ("ban","SnD","B"),("ban","SnD","A"),("pick","SnD","B"),("side","SnD","A"),
-        ("ban","Overload","A"),("ban","Overload","B"),("side","Overload","A")
+        ("ban","Overload","A"),("ban","Overload","B"),("side","Overload","A"),
     ],
     "bo5": [
         ("ban","HP","A"),("ban","HP","B"),("pick","HP","A"),("side","HP","B"),
         ("pick","HP","B"),("side","HP","A"),
         ("ban","SnD","B"),("ban","SnD","A"),("pick","SnD","B"),("side","SnD","A"),
         ("pick","SnD","A"),("side","SnD","B"),
-        ("ban","Overload","A"),("ban","Overload","B"),("side","Overload","A")
+        ("ban","Overload","A"),("ban","Overload","B"),("side","Overload","A"),
     ]
 }
 
@@ -146,14 +134,12 @@ class MapaButton(discord.ui.Button):
         )
         self.mapa, self.modo, self.cid = mapa, modo, cid
 
-    async def callback(self, i: discord.Interaction):
+    async def callback(self, i):
         m = matches[self.cid]
         accion, modo, _ = m["flujo"][m["paso"]]
-
         m["usados"][modo].add(self.mapa)
         if accion == "pick":
             m["mapas_picked"].append((modo, self.mapa))
-
         m["paso"] += 1
         await avanzar_pyb(i)
 
@@ -164,14 +150,14 @@ class MapaView(discord.ui.View):
             self.add_item(MapaButton(mapa, modo, cid))
 
 # ===========================
-# BOTONES BANDOS
+# BANDOS
 # ===========================
 class BandoButton(discord.ui.Button):
     def __init__(self, label, cid):
         super().__init__(label=label, style=discord.ButtonStyle.secondary)
         self.cid = cid
 
-    async def callback(self, i: discord.Interaction):
+    async def callback(self, i):
         matches[self.cid]["paso"] += 1
         await avanzar_pyb(i)
 
@@ -192,11 +178,10 @@ class ResultadoModal(discord.ui.Modal, title="Introducir resultado"):
         super().__init__()
         self.cid = cid
 
-    async def on_submit(self, i: discord.Interaction):
+    async def on_submit(self, i):
         m = matches[self.cid]
         ai, bi = int(self.a.value), int(self.b.value)
         m["resultados"].append({"A": ai, "B": bi})
-
         idx = len(m["resultados"])
 
         if idx < len(m["mapas_finales"]):
@@ -242,6 +227,7 @@ class SubirView(discord.ui.View):
 class SubirButton(discord.ui.Button):
     def __init__(self, cid):
         super().__init__(label="⬆️ Subir a Challonge", style=discord.ButtonStyle.success)
+        self.cid = cid
 
     async def callback(self, i):
         await i.response.send_message("📤 Enviado a Challonge (placeholder)", ephemeral=True)
@@ -249,21 +235,11 @@ class SubirButton(discord.ui.Button):
 # ===========================
 # FLUJO PYB
 # ===========================
-async def avanzar_pyb(i: discord.Interaction):
+async def avanzar_pyb(i):
     m = matches[i.channel.id]
 
     if m["paso"] >= len(m["flujo"]):
-        # construir mapas finales en orden fijo
-        hp = [x for x in m["mapas_picked"] if x[0]=="HP"]
-        snd = [x for x in m["mapas_picked"] if x[0]=="SnD"]
-        ov = [m2 for m2 in MAPAS["Overload"] if m2 not in [x[1] for x in m["mapas_picked"] if x[0]=="Overload"]][0]
-
-        m["mapas_finales"] = []
-        if m["formato"] == "bo3":
-            m["mapas_finales"] = [hp[0], snd[0], ("Overload", ov)]
-        else:
-            m["mapas_finales"] = [hp[0], snd[0], ("Overload", ov), hp[1], snd[1]]
-
+        m["mapas_finales"] = m["mapas_picked"]
         await i.response.edit_message(
             embeds=[embed_resumen_mapas(m), embed_resultado(m, 0)],
             view=ResultadoView(i.channel.id)
@@ -282,18 +258,15 @@ async def setpartido(ctx, equipo_a: discord.Role, equipo_b: discord.Role, format
     formato = formato.lower()
     if formato not in FLUJOS:
         return
-
     matches[ctx.channel.id] = {
         "equipos": {"A": equipo_a, "B": equipo_b},
         "flujo": FLUJOS[formato],
-        "formato": formato,
         "paso": 0,
         "usados": {"HP": set(), "SnD": set(), "Overload": set()},
         "mapas_picked": [],
         "mapas_finales": [],
         "resultados": []
     }
-
     _, modo, _ = FLUJOS[formato][0]
     await ctx.send(embed=embed_turno(matches[ctx.channel.id]), view=MapaView(modo, ctx.channel.id))
 
