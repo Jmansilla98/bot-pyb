@@ -231,7 +231,18 @@ class SubirButton(discord.ui.Button):
 async def avanzar_pyb(i):
     m = matches[i.channel.id]
     if m["paso"] >= len(m["flujo"]):
-        m["mapas_finales"] = m["mapas_picked"]
+        orden = ["HP", "SnD", "Overload", "HP", "SnD"]
+        final = []
+        usados = m["mapas_picked"].copy()
+
+for modo in orden:
+    for x in usados:
+        if x[0] == modo:
+            final.append(x)
+            usados.remove(x)
+            break
+
+m["mapas_finales"] = final
         await i.message.edit(
             embeds=[embed_resumen(m), embed_resultado(m, 0)],
             view=ResultadoView(i.channel.id)
