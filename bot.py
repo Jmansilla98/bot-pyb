@@ -316,7 +316,7 @@ async def setpartido(ctx, equipo_a: discord.Role, equipo_b: discord.Role, format
     subir_overlay(ctx.channel.id, payload)
 
     await ctx.send(
-        f"🎥 Overlay:\n{OVERLAY_BASE}/?match=ctx.channel.id}",
+        f"🎥 Overlay:\n{OVERLAY_BASE}/?match={ctx.channel.id}",
         embed=embed_turno(matches[ctx.channel.id]),
         view=MapaView(FLUJOS[formato][0][1], ctx.channel.id)
     )
