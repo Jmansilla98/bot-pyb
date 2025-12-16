@@ -1,0 +1,14 @@
+FORMATOS = {
+    "bo3": [
+        ("ban","HP","A"),("ban","HP","B"),("pick","HP","A"),("side","HP","B"),
+        ("ban","SnD","B"),("ban","SnD","A"),("pick","SnD","B"),("side","SnD","A"),
+        ("ban","Overload","A"),("ban","Overload","B"),("side","Overload","A"),
+    ],
+    "bo5": [
+        ("ban","HP","A"),("ban","HP","B"),("pick","HP","A"),("side","HP","B"),
+        ("pick","HP","B"),("side","HP","A"),
+        ("ban","SnD","B"),("ban","SnD","A"),("pick","SnD","B"),("side","SnD","A"),
+        ("pick","SnD","A"),("side","SnD","B"),
+        ("ban","Overload","A"),("ban","Overload","B"),("side","Overload","A"),
+    ]
+}

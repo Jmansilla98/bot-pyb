@@ -1,0 +1,83 @@
+2025-12-16 12:39:02,455 [WARNING] discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-12-16 12:39:02,456 [DEBUG] discord.client: on_ready has successfully been registered as an event
+2025-12-16 12:46:23,498 [WARNING] discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-12-16 12:46:23,498 [DEBUG] discord.client: on_ready has successfully been registered as an event
+2025-12-16 12:47:57,507 [WARNING] discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-12-16 12:47:57,509 [DEBUG] discord.client: on_message has successfully been registered as an event
+2025-12-16 12:47:57,509 [DEBUG] discord.client: on_ready has successfully been registered as an event
+2025-12-16 12:48:19,926 [WARNING] discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-12-16 12:48:19,927 [DEBUG] discord.client: on_message has successfully been registered as an event
+2025-12-16 12:48:19,927 [DEBUG] discord.client: on_ready has successfully been registered as an event
+2025-12-16 12:48:19,927 [DEBUG] asyncio: Using proactor: IocpProactor
+2025-12-16 12:48:19,929 [INFO] discord.client: logging in using static token
+2025-12-16 12:48:21,177 [INFO] discord.gateway: Shard ID None has connected to Gateway (Session ID: 4db5a817eb1c01c05d822ef431c8eed8).
+2025-12-16 12:48:23,203 [INFO] PICKBAN: Bot conectado correctamente
+2025-12-16 12:48:23,203 [INFO] PICKBAN: Usuario: PickBanBot#3117 | ID: 1449146081869955254
+2025-12-16 12:48:23,203 [INFO] PICKBAN: Inicializando WebSocket...
+2025-12-16 12:48:23,205 [INFO] PICKBAN: WS activo en ws://localhost:8765/ws
+2025-12-16 12:48:23,205 [INFO] PICKBAN: Servidor WebSocket arrancado
+2025-12-16 12:48:36,720 [DEBUG] PICKBAN: Mensaje recibido: !start
+2025-12-16 12:48:36,720 [INFO] PICKBAN: !start recibido en canal 1450419757982548090
+2025-12-16 12:48:36,720 [DEBUG] PICKBAN: Estado inicial creado para canal 1450419757982548090
+2025-12-16 12:48:36,720 [DEBUG] PICKBAN: {'step': 0, 'maps': {'Blackheart': {'mode': 'HP', 'status': 'free'}, 'Colossus': {'mode': 'SnD', 'status': 'free'}, 'Den': {'mode': 'OVR', 'status': 'free'}, 'Exposure': {'mode': 'OVR', 'status': 'free'}, 'Scar': {'mode': 'OVR', 'status': 'free'}, 'Raid': {'mode': 'SnD', 'status': 'free'}}}
+2025-12-16 12:48:36,721 [DEBUG] PICKBAN: Construyendo PickBanView para canal 1450419757982548090
+2025-12-16 12:48:36,721 [DEBUG] PICKBAN: Paso actual: {'mode': 'HP', 'type': 'ban', 'team': 'A'}
+2025-12-16 12:48:36,981 [DEBUG] PICKBAN: Mensaje recibido: 
+2025-12-16 12:48:37,029 [INFO] PICKBAN: Mensaje inicial enviado en canal 1450419757982548090
+2025-12-16 12:48:37,029 [DEBUG] PICKBAN: Construyendo PickBanView para canal 1450419757982548090
+2025-12-16 12:48:37,029 [DEBUG] PICKBAN: Paso actual: {'mode': 'HP', 'type': 'ban', 'team': 'A'}
+2025-12-16 12:48:37,301 [DEBUG] PICKBAN: Mensaje recibido: 
+2025-12-16 12:49:01,435 [WARNING] discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-12-16 12:49:01,436 [DEBUG] discord.client: on_message has successfully been registered as an event
+2025-12-16 12:49:01,437 [DEBUG] discord.client: on_ready has successfully been registered as an event
+2025-12-16 12:49:01,437 [DEBUG] asyncio: Using proactor: IocpProactor
+2025-12-16 12:49:01,438 [INFO] discord.client: logging in using static token
+2025-12-16 12:49:02,327 [INFO] discord.gateway: Shard ID None has connected to Gateway (Session ID: 4371bba2d6357c510de37edf829017d0).
+2025-12-16 12:49:04,339 [INFO] PICKBAN: Bot conectado correctamente
+2025-12-16 12:49:04,339 [INFO] PICKBAN: Usuario: PickBanBot#3117 | ID: 1449146081869955254
+2025-12-16 12:49:04,339 [INFO] PICKBAN: Inicializando WebSocket...
+2025-12-16 12:49:04,340 [INFO] PICKBAN: WS activo en ws://localhost:8765/ws
+2025-12-16 12:49:04,341 [INFO] PICKBAN: Servidor WebSocket arrancado
+2025-12-16 12:49:08,172 [DEBUG] PICKBAN: Mensaje recibido: !start
+2025-12-16 12:49:08,172 [INFO] PICKBAN: !start recibido en canal 1450454640880648384
+2025-12-16 12:49:08,172 [DEBUG] PICKBAN: Estado inicial creado para canal 1450454640880648384
+2025-12-16 12:49:08,173 [DEBUG] PICKBAN: {'step': 0, 'maps': {'Blackheart': {'mode': 'HP', 'status': 'free'}, 'Colossus': {'mode': 'SnD', 'status': 'free'}, 'Den': {'mode': 'OVR', 'status': 'free'}, 'Exposure': {'mode': 'OVR', 'status': 'free'}, 'Scar': {'mode': 'OVR', 'status': 'free'}, 'Raid': {'mode': 'SnD', 'status': 'free'}}}
+2025-12-16 12:49:08,173 [DEBUG] PICKBAN: Construyendo PickBanView para canal 1450454640880648384
+2025-12-16 12:49:08,173 [DEBUG] PICKBAN: Paso actual: {'mode': 'HP', 'type': 'ban', 'team': 'A'}
+2025-12-16 12:49:08,354 [DEBUG] PICKBAN: Mensaje recibido: 
+2025-12-16 12:49:08,372 [INFO] PICKBAN: Mensaje inicial enviado en canal 1450454640880648384
+2025-12-16 12:49:08,372 [DEBUG] PICKBAN: Construyendo PickBanView para canal 1450454640880648384
+2025-12-16 12:49:08,372 [DEBUG] PICKBAN: Paso actual: {'mode': 'HP', 'type': 'ban', 'team': 'A'}
+2025-12-16 12:49:08,571 [DEBUG] PICKBAN: Mensaje recibido: 
+2025-12-16 12:52:50,597 [INFO] PICKBAN: Botón MAPA 'Blackheart' pulsado en canal 1450454640880648384
+2025-12-16 12:52:50,802 [DEBUG] PICKBAN: Acción: {'mode': 'HP', 'type': 'ban', 'team': 'A'}
+2025-12-16 12:52:50,803 [DEBUG] PICKBAN: Construyendo PickBanView para canal 1450454640880648384
+2025-12-16 12:52:50,803 [DEBUG] PICKBAN: Paso actual: {'mode': 'HP', 'type': 'ban', 'team': 'B'}
+2025-12-16 12:52:51,026 [DEBUG] PICKBAN: Estado enviado por WS
+2025-12-16 12:52:55,530 [INFO] PICKBAN: Botón MAPA 'Blackheart' pulsado en canal 1450454640880648384
+2025-12-16 12:52:55,699 [DEBUG] PICKBAN: Acción: {'mode': 'HP', 'type': 'ban', 'team': 'B'}
+2025-12-16 12:52:55,699 [DEBUG] PICKBAN: Construyendo PickBanView para canal 1450454640880648384
+2025-12-16 12:52:55,699 [DEBUG] PICKBAN: Paso actual: {'mode': 'HP', 'type': 'pick_map', 'team': 'A', 'slot': 1}
+2025-12-16 12:52:55,974 [DEBUG] PICKBAN: Estado enviado por WS
+2025-12-16 12:53:39,086 [WARNING] discord.client: PyNaCl is not installed, voice will NOT be supported
+2025-12-16 12:53:39,088 [DEBUG] discord.client: on_message has successfully been registered as an event
+2025-12-16 12:53:39,088 [DEBUG] discord.client: on_ready has successfully been registered as an event
+2025-12-16 12:53:39,089 [DEBUG] asyncio: Using proactor: IocpProactor
+2025-12-16 12:53:39,089 [INFO] discord.client: logging in using static token
+2025-12-16 12:53:40,186 [INFO] discord.gateway: Shard ID None has connected to Gateway (Session ID: c4f5a25c34daf7c5f2935b14f5ff1b20).
+2025-12-16 12:53:42,198 [INFO] PICKBAN: Bot conectado correctamente
+2025-12-16 12:53:42,198 [INFO] PICKBAN: Usuario: PickBanBot#3117 | ID: 1449146081869955254
+2025-12-16 12:53:42,198 [INFO] PICKBAN: Inicializando WebSocket...
+2025-12-16 12:53:42,200 [INFO] PICKBAN: WS activo en ws://localhost:8765/ws
+2025-12-16 12:53:42,201 [INFO] PICKBAN: Servidor WebSocket arrancado
+2025-12-16 12:53:55,827 [DEBUG] PICKBAN: Mensaje recibido: !start
+2025-12-16 12:53:55,828 [INFO] PICKBAN: !start recibido en canal 1450455864740937828
+2025-12-16 12:53:55,828 [DEBUG] PICKBAN: Estado inicial creado para canal 1450455864740937828
+2025-12-16 12:53:55,828 [DEBUG] PICKBAN: {'step': 0, 'maps': {'Blackheart': {'mode': 'HP', 'status': 'free'}, 'Colossus': {'mode': 'SnD', 'status': 'free'}, 'Den': {'mode': 'OVR', 'status': 'free'}, 'Exposure': {'mode': 'OVR', 'status': 'free'}, 'Scar': {'mode': 'OVR', 'status': 'free'}, 'Raid': {'mode': 'SnD', 'status': 'free'}}}
+2025-12-16 12:53:55,828 [DEBUG] PICKBAN: Construyendo PickBanView para canal 1450455864740937828
+2025-12-16 12:53:55,828 [DEBUG] PICKBAN: Paso actual: {'mode': 'HP', 'type': 'ban', 'team': 'A'}
+2025-12-16 12:53:56,114 [DEBUG] PICKBAN: Mensaje recibido: 
+2025-12-16 12:53:56,151 [INFO] PICKBAN: Mensaje inicial enviado en canal 1450455864740937828
+2025-12-16 12:53:56,151 [DEBUG] PICKBAN: Construyendo PickBanView para canal 1450455864740937828
+2025-12-16 12:53:56,151 [DEBUG] PICKBAN: Paso actual: {'mode': 'HP', 'type': 'ban', 'team': 'A'}
+2025-12-16 12:53:56,321 [DEBUG] PICKBAN: Mensaje recibido: 
