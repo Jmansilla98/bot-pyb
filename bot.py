@@ -56,7 +56,7 @@ def gh_headers():
     }
 
 def subir_overlay(channel_id, payload):
-    url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{MATCHES_PATH}/{ctx.channel.id}.json"
+    url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{MATCHES_PATH}/{channel_id}.json"
     content = base64.b64encode(json.dumps(payload, indent=2).encode()).decode()
 
     r = requests.get(url, headers=gh_headers())
@@ -296,7 +296,7 @@ async def setpartido(ctx, equipo_a: discord.Role, equipo_b: discord.Role, format
     formato = formato.lower()
     if formato not in FLUJOS:
         return
-
+    channel_id = ctx.channel.id,
     matches[ctx.channel.id] = {
         "equipos": {"A": equipo_a, "B": equipo_b},
         "flujo": FLUJOS[formato],
@@ -313,10 +313,10 @@ async def setpartido(ctx, equipo_a: discord.Role, equipo_b: discord.Role, format
         "equipoB": equipo_b.name,
         "estado": "Pick & Ban"
     }
-    subir_overlay(ctx.channel.id, payload)
+    subir_overlay(channel_id, payload)
 
     await ctx.send(
-        f"🎥 Overlay:\n{OVERLAY_BASE}/?match={ctx.channel.id}",
+        f"🎥 Overlay:\n{OVERLAY_BASE}/?match={channel_id}",
         embed=embed_turno(matches[ctx.channel.id]),
         view=MapaView(FLUJOS[formato][0][1], ctx.channel.id)
     )
