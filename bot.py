@@ -44,7 +44,7 @@ ROL_ARBITRO = "Arbitro"
 # GITHUB / OVERLAY
 # ==========================================================
 GITHUB_USER = "Jmansilla98"
-GITHUB_REPO = "overlay-cod-fecod"
+GITHUB_REPO = "Overlay-cod-fecod"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 MATCHES_PATH = "matches"
 OVERLAY_BASE = f"https://{GITHUB_USER}.github.io/{GITHUB_REPO}"
