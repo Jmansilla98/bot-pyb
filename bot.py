@@ -56,7 +56,7 @@ def gh_headers():
     }
 
 def subir_overlay(channel_id, payload):
-    url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{MATCHES_PATH}/{channel_id}.json"
+    url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{MATCHES_PATH}/{ctx.channel.id}.json"
     content = base64.b64encode(json.dumps(payload, indent=2).encode()).decode()
 
     r = requests.get(url, headers=gh_headers())
