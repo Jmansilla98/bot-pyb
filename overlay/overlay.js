@@ -6,7 +6,6 @@ const teamBEl = document.getElementById("teamB");
 const estadoEl = document.getElementById("estado");
 const modeEl = document.getElementById("mode");
 const mapsEl = document.getElementById("maps");
-
 const finalTop = document.getElementById("final-maps-top");
 const finalCenter = document.getElementById("final-center");
 
@@ -20,9 +19,6 @@ ws.onmessage = (ev) => {
 };
 
 function render(state) {
-  // =========================
-  // HEADER
-  // =========================
   teamAEl.textContent = state.teams.A.name;
   teamBEl.textContent = state.teams.B.name;
 
@@ -35,14 +31,14 @@ function render(state) {
     : "FINALIZADO";
 
   // =========================
-  // MAPAS PICKED (ORDENADOS)
+  // PICKED MAPS (ORDERED)
   // =========================
   const picked = Object.entries(state.maps)
     .filter(([_, m]) => m.status === "picked")
     .sort((a, b) => a[1].slot - b[1].slot);
 
   // =========================
-  // FINAL MAPS TOP (DURANTE DRAFT)
+  // FINAL MAPS TOP
   // =========================
   finalTop.innerHTML = "";
 
@@ -55,14 +51,17 @@ function render(state) {
       div.className = "final-map";
       div.innerHTML = `
         <div class="map-img" style="background-image:url('/static/maps/${img}.jpg')"></div>
-        <div class="label">M${m.slot} · ${m.mode}</div>
+        <div class="label">
+          M${m.slot} · ${m.mode}<br>
+          Pick ${m.team}${m.side ? " · " + m.side : ""}
+        </div>
       `;
       finalTop.appendChild(div);
     });
   }
 
   // =========================
-  // MAPAS DEL MODO ACTIVO
+  // ACTIVE MODE MAPS
   // =========================
   mapsEl.innerHTML = "";
 
@@ -72,7 +71,7 @@ function render(state) {
     .filter(([_, m]) => m.mode === activeMode)
     .forEach(([key, m]) => {
       const name = key.split("::")[1];
-      const imgName = name.charAt(0).toLowerCase() + name.slice(1);
+      const img = name.charAt(0).toLowerCase() + name.slice(1);
 
       const card = document.createElement("div");
       card.className = "map-card";
@@ -80,14 +79,13 @@ function render(state) {
       if (m.slot === 3) card.classList.add("big");
 
       card.innerHTML = `
-        <div class="map-img" style="background-image:url('/static/maps/${imgName}.jpg')"></div>
+        <div class="map-img" style="background-image:url('/static/maps/${img}.jpg')"></div>
         <div class="map-overlay"></div>
-        <div class="map-info" data-team="${m.team || ""}">
-
+        <div class="map-info">
           <div class="map-name">${name}</div>
           <div class="map-meta">
             ${m.status.toUpperCase()} — TEAM ${m.team || ""}
-            ${m.side ? ` · ${m.side}` : ""}
+            ${m.side ? " · " + m.side : ""}
           </div>
         </div>
       `;
@@ -96,7 +94,7 @@ function render(state) {
     });
 
   // =========================
-  // FINAL CENTER (DRAFT TERMINADO)
+  // FINAL CENTER
   // =========================
   if (finished) {
     finalCenter.classList.remove("hidden");
