@@ -82,7 +82,8 @@ function render(state) {
       card.innerHTML = `
         <div class="map-img" style="background-image:url('/static/maps/${imgName}.jpg')"></div>
         <div class="map-overlay"></div>
-        <div class="map-info">
+        <div class="map-info" data-team="${m.team || ""}">
+
           <div class="map-name">${name}</div>
           <div class="map-meta">
             ${m.status.toUpperCase()} — TEAM ${m.team || ""}

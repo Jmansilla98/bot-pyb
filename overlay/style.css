@@ -74,6 +74,37 @@ body {
   color: #00ff88;
   margin-top: 4px;
 }
+/* =========================
+   BAN — CDL BLACK STRIPES
+========================= */
+.map-card.ban .map-img {
+  filter: grayscale(1) brightness(0.12) blur(2px);
+}
+
+.map-card.ban::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(0,0,0,0.85),
+      rgba(0,0,0,0.85) 14px,
+      rgba(40,40,40,0.85) 14px,
+      rgba(40,40,40,0.85) 28px
+    );
+}
+
+.map-card.ban .map-info::before {
+  content: "BAN — TEAM " attr(data-team);
+  position: absolute;
+  top: -38px;
+  left: 0;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: rgba(255,255,255,0.7);
+}
 
 /* =========================
    FINAL MAPS TOP
@@ -165,22 +196,27 @@ body {
 /* INFO */
 .map-info {
   position: absolute;
-  bottom: 18px;
-  left: 20px;
-  right: 20px;
+  bottom: 16px;
+  left: 18px;
+  right: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
+
 
 .map-name {
   font-size: 26px;
   font-weight: 900;
-  margin-bottom: 6px;
+  letter-spacing: 1px;
 }
 
 .map-meta {
-  font-size: 14px;
+  font-size: 13px;
   letter-spacing: 1px;
-  opacity: 0.9;
+  opacity: 0.85;
 }
+
 
 /* =========================
    STATES
@@ -225,14 +261,18 @@ body {
 ========================= */
 .final-center {
   position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,0.9);
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.88);
   display: flex;
   justify-content: center;
   align-items: center;
   gap: 48px;
-  z-index: 10;
+  z-index: 20;
 }
+
 
 .final-center .final-map {
   width: 420px;
@@ -254,4 +294,35 @@ body {
 @keyframes slideDown {
   from { opacity: 0; transform: translateY(-30px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+
+#overlay {
+  position: relative;
+  overflow: hidden;
+  width: 1920px;
+  height: 1080px;
+  padding: 40px 80px;
+  background:
+    linear-gradient(180deg, #2b2b2b, #1e1e1e);
+}
+
+/* Brillo animado */
+#overlay::before {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  background:
+    linear-gradient(
+      120deg,
+      transparent 40%,
+      rgba(255,255,255,0.06) 50%,
+      transparent 60%
+    );
+  animation: sweep 8s linear infinite;
+  pointer-events: none;
+}
+@keyframes sweep {
+  from { transform: translateX(-40%); }
+  to { transform: translateX(40%); }
 }
