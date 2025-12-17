@@ -1,49 +1,93 @@
+/* RESET */
+* {
+  box-sizing: border-box;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
 body {
   margin: 0;
-  font-family: "Segoe UI", sans-serif;
   background: transparent;
   color: white;
 }
 
+/* OVERLAY BASE */
 #overlay {
   width: 1920px;
   height: 1080px;
-  padding: 40px;
+  padding: 40px 60px;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      #0b0b0b,
+      #0b0b0b 12px,
+      #0f0f0f 12px,
+      #0f0f0f 24px
+    );
 }
 
+/* HEADER */
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 42px;
+  font-size: 46px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.team {
+  padding: 12px 30px;
+  background: rgba(0, 0, 0, 0.7);
+  border-left: 6px solid #00ff88;
+  text-transform: uppercase;
+}
+
+.team-b {
+  border-left: none;
+  border-right: 6px solid #00ff88;
 }
 
 .vs {
-  opacity: 0.6;
+  opacity: 0.5;
+  font-size: 32px;
 }
 
+/* ESTADO */
 .estado {
-  margin-top: 20px;
-  font-size: 28px;
-  opacity: 0.8;
+  margin-top: 10px;
+  margin-bottom: 40px;
+  font-size: 26px;
+  letter-spacing: 2px;
+  color: #00ff88;
+  opacity: 0.85;
 }
 
+/* MAPAS GRID */
 .mapas {
-  margin-top: 40px;
   display: flex;
-  gap: 20px;
+  gap: 24px;
+  align-items: flex-end;
 }
 
+/* TARJETA MAPA */
 .map-card {
-  width: 260px;
-  height: 160px;
+  width: 300px;
+  height: 190px;
   position: relative;
+  border-radius: 12px;
   overflow: hidden;
-  border-radius: 10px;
-  background: #111;
+  background: #000;
+  box-shadow: 0 0 0 2px rgba(0,255,136,0.15);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
-.map-card .map-img {
+.map-card:hover {
+  transform: scale(1.04);
+  box-shadow: 0 0 20px rgba(0,255,136,0.35);
+}
+
+/* MAPA IMAGEN */
+.map-img {
   position: absolute;
   inset: 0;
   background-size: cover;
@@ -51,29 +95,63 @@ body {
   filter: brightness(0.9);
 }
 
+/* ESTADOS */
 .map-card.ban .map-img {
   filter: brightness(0.25) grayscale(1);
 }
 
 .map-card.pick .map-img {
-  filter: brightness(0.9);
-  box-shadow: inset 0 0 0 5px rgba(0,255,0,0.4);
+  filter: brightness(1);
 }
 
+.map-card.pick::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 4px solid #00ff88;
+  box-shadow: inset 0 0 30px rgba(0,255,136,0.4);
+}
+
+/* MAPA FINAL (DECIDER) */
+.map-card.pick:nth-child(3) {
+  width: 360px;
+  height: 230px;
+}
+
+/* NOMBRE MAPA */
 .map-name {
   position: absolute;
-  bottom: 10px;
-  left: 10px;
-  font-weight: bold;
+  bottom: 12px;
+  left: 14px;
+  font-size: 20px;
+  font-weight: 700;
   text-shadow: 0 0 10px black;
 }
 
+/* SIDE */
 .map-side {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 12px;
+  right: 12px;
+  background: rgba(0,0,0,0.7);
+  border-left: 3px solid #00ff88;
+  padding: 6px 10px;
   font-size: 14px;
-  background: rgba(0,0,0,0.6);
-  padding: 4px 8px;
-  border-radius: 4px;
+  letter-spacing: 1px;
+}
+
+/* ANIMACIÓN SUAVE EN CARGA */
+.map-card {
+  animation: fadeInUp 0.5s ease both;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
