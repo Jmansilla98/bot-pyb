@@ -92,10 +92,27 @@ body {
   color: #00ff88;
   text-transform: uppercase;
 }
+.map-card .map-img,
+.final-map .map-img {
+  position: absolute;
+  inset: -25%;
+  background-size: cover;
+  background-position: center;
+  transform: skewX(10deg) scale(1.25);
+}
 
 /* BAN FIX (ESTADO REAL) */
 .map-card.banned .map-img {
   filter: grayscale(1) brightness(0.1) blur(2px);
+}
+.map-card,
+.final-map {
+  position: relative;
+  width: 300px;
+  height: 180px;
+  overflow: hidden;
+  transform: skewX(-10deg);
+  background: #000;
 }
 
 .map-card.banned::after {
@@ -204,16 +221,17 @@ body {
     rgba(0,0,0,0.85),
     rgba(0,0,0,0.15)
   );
+  pointer-events: none;
 }
 
-/* Info */
 .map-info {
   position: absolute;
-  bottom: 14px;
-  left: 14px;
-  right: 14px;
-  transform: skew(6deg);
+  bottom: 12px;
+  left: 16px;
+  right: 16px;
+  transform: skewX(10deg);
 }
+
 
 .map-name {
   font-size: 22px;
@@ -281,6 +299,11 @@ body {
   gap: 52px;
   z-index: 10;
 }
+.final-center .final-map {
+  width: 380px;
+  height: 220px;
+}
+
 
 .hidden {
   display: none;
