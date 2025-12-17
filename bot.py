@@ -9,8 +9,6 @@ import os
 APP_URL = os.getenv("APP_URL")
 PORT = int(os.getenv("PORT", "8080"))
 
-web.run_app(app, host="0.0.0.0", port=PORT)
-
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -60,7 +58,20 @@ FLOW_BO3 = [
     {"mode": "OVR", "type": "pick_side", "team": "A", "slot": 3},
 ]
 
+routes = web.RouteTableDef()
 
+@routes.get("/ws")
+async def websocket_handler(request):
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+    # aquí tu lógica WS
+    return ws
+
+@routes.get("/")
+async def index(request):
+    return web.FileResponse("overlay.html")
+
+app.add_routes(routes)
 # =========================
 # WEBSOCKET
 # =========================
@@ -305,9 +316,17 @@ async def start(ctx, series: str, teamA: discord.Role, teamB: discord.Role):
         view=PickBanView(ctx.channel.id)
     )
 
+async def start_web():
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
+
 @bot.event
 async def on_ready():
     asyncio.create_task(keep_alive())
+    asyncio.create_task(start_web())
+    
     print("Bot listo y keep-alive activo")
 
 
