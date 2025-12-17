@@ -3,6 +3,14 @@ from discord.ext import commands
 import asyncio
 import json
 from aiohttp import web
+import aiohttp
+import os
+
+APP_URL = os.getenv("APP_URL")
+PORT = int(os.getenv("PORT", "8080"))
+
+web.run_app(app, host="0.0.0.0", port=PORT)
+
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -262,6 +270,16 @@ def build_embed(state):
 
     return embed
 
+async def keep_alive():
+    if not APP_URL:
+        return
+    async with aiohttp.ClientSession() as session:
+        while True:
+            try:
+                await session.get(APP_URL)
+            except:
+                pass
+            await asyncio.sleep(300)  # cada 5 minutos
 
 @bot.command()
 async def start(ctx, series: str, teamA: discord.Role, teamB: discord.Role):
@@ -287,9 +305,13 @@ async def start(ctx, series: str, teamA: discord.Role, teamB: discord.Role):
         view=PickBanView(ctx.channel.id)
     )
 
+@bot.event
+async def on_ready():
+    asyncio.create_task(keep_alive())
+    print("Bot listo y keep-alive activo")
 
 
-bot.run("MTQ0OTE0NjA4MTg2OTk1NTI1NA.GeB1YR.mthPFgJljluB8-_XiigaYYRABYp-7Yk6R6W-KI")
+bot.run(os.getenv("DISCORD_TOKEN"))
 
 
 
