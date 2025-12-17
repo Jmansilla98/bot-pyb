@@ -6,15 +6,26 @@ from aiohttp import web
 import aiohttp
 import os
 
+# =========================
+# CONFIG
+# =========================
 APP_URL = os.getenv("APP_URL")
 PORT = int(os.getenv("PORT", "8080"))
+TOKEN = os.getenv("DISCORD_TOKEN")
 
-
+# =========================
+# DISCORD
+# =========================
 intents = discord.Intents.default()
 intents.message_content = True
 
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+# =========================
+# STATE
+# =========================
 MATCHES = {}
-WS_CLIENTS = {}  # match_id(str) -> set(ws)
+WS_CLIENTS = {}  # match_id -> set(ws)
 
 HP_MAPS = ["Blackheart", "Colossus", "Den", "Exposure", "Scar"]
 SND_MAPS = ["Colossus", "Den", "Exposure", "Raid", "Scar"]
@@ -27,14 +38,12 @@ FLOW_BO5 = [
     {"mode": "HP", "type": "pick_side", "team": "B", "slot": 1},
     {"mode": "HP", "type": "pick_map", "team": "B", "slot": 4},
     {"mode": "HP", "type": "pick_side", "team": "A", "slot": 4},
-
     {"mode": "SnD", "type": "ban", "team": "B"},
     {"mode": "SnD", "type": "ban", "team": "A"},
     {"mode": "SnD", "type": "pick_map", "team": "B", "slot": 2},
     {"mode": "SnD", "type": "pick_side", "team": "A", "slot": 2},
     {"mode": "SnD", "type": "pick_map", "team": "A", "slot": 5},
     {"mode": "SnD", "type": "pick_side", "team": "B", "slot": 5},
-
     {"mode": "OVR", "type": "ban", "team": "A"},
     {"mode": "OVR", "type": "ban", "team": "B"},
     {"mode": "OVR", "type": "auto_decider", "slot": 3},
@@ -46,41 +55,32 @@ FLOW_BO3 = [
     {"mode": "HP", "type": "ban", "team": "B"},
     {"mode": "HP", "type": "pick_map", "team": "A", "slot": 1},
     {"mode": "HP", "type": "pick_side", "team": "B", "slot": 1},
-
     {"mode": "SnD", "type": "ban", "team": "B"},
     {"mode": "SnD", "type": "ban", "team": "A"},
     {"mode": "SnD", "type": "pick_map", "team": "B", "slot": 2},
     {"mode": "SnD", "type": "pick_side", "team": "A", "slot": 2},
-
     {"mode": "OVR", "type": "ban", "team": "A"},
     {"mode": "OVR", "type": "ban", "team": "B"},
     {"mode": "OVR", "type": "auto_decider", "slot": 3},
     {"mode": "OVR", "type": "pick_side", "team": "A", "slot": 3},
 ]
 
+# =========================
+# AIOHTTP APP
+# =========================
+app = web.Application()
 routes = web.RouteTableDef()
-
-@routes.get("/ws")
-async def websocket_handler(request):
-    ws = web.WebSocketResponse()
-    await ws.prepare(request)
-    # aquí tu lógica WS
-    return ws
 
 @routes.get("/")
 async def index(request):
     return web.FileResponse("overlay.html")
 
-app.add_routes(routes)
-# =========================
-# WEBSOCKET
-# =========================
-async def ws_handler(request):
+@routes.get("/ws")
+async def websocket_handler(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
-    # Compatible con ?match= y ?channel=
-    match_id = request.query.get("match") or request.query.get("channel")
+    match_id = request.query.get("match")
     if not match_id:
         await ws.close()
         return ws
@@ -88,7 +88,6 @@ async def ws_handler(request):
     WS_CLIENTS.setdefault(match_id, set()).add(ws)
     print(f"🟢 Overlay conectado al match {match_id}")
 
-    # Si ya existe estado para ese match, mandarlo al conectar
     if int(match_id) in MATCHES:
         await ws_broadcast(match_id)
 
@@ -101,41 +100,59 @@ async def ws_handler(request):
 
     return ws
 
+app.add_routes(routes)
 
-async def ws_broadcast(match_id: str):
+# =========================
+# WEBSOCKET BROADCAST
+# =========================
+async def ws_broadcast(match_id):
     state = MATCHES.get(int(match_id))
     if not state:
         return
 
     payload = json.dumps({"type": "state", "state": state})
-
     for ws in list(WS_CLIENTS.get(match_id, [])):
         try:
             await ws.send_str(payload)
         except:
             WS_CLIENTS[match_id].discard(ws)
 
-
-async def start_ws():
-    app = web.Application()
-    app.router.add_get("/ws", ws_handler)
+# =========================
+# WEB START
+# =========================
+async def start_web():
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", 8765)
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
-    print("🟢 WS activo en ws://localhost:8765/ws")
-
+    print(f"🌐 Web + WS activos en puerto {PORT}")
 
 # =========================
-# BOT
+# KEEP ALIVE
 # =========================
-class PickBanBot(commands.Bot):
-    async def setup_hook(self):
-        asyncio.create_task(start_ws())
+async def keep_alive():
+    if not APP_URL:
+        return
+    async with aiohttp.ClientSession() as session:
+        while True:
+            try:
+                await session.get(APP_URL)
+            except:
+                pass
+            await asyncio.sleep(300)
 
-bot = PickBanBot(command_prefix="!", intents=intents)
+# =========================
+# DISCORD EVENTS
+# =========================
+@bot.event
+async def on_ready():
+    asyncio.create_task(start_web())
+    asyncio.create_task(keep_alive())
+    print("🤖 Bot listo (Cloud)")
 
-
+# =========================
+# COMANDOS
+# =========================
 def build_maps():
     maps = {}
     for m in HP_MAPS:
@@ -146,22 +163,17 @@ def build_maps():
         maps[f"OVR::{m}"] = {"mode": "OVR", "status": "free", "team": None, "slot": None, "side": None}
     return maps
 
-
 async def auto_decider(state):
-    # Avanza automáticamente cualquier step "auto_decider" si queda 1 mapa libre en ese modo
     while state["step"] < len(state["flow"]):
         step = state["flow"][state["step"]]
         if step["type"] != "auto_decider":
             return
-
         free_maps = [k for k, m in state["maps"].items() if m["mode"] == step["mode"] and m["status"] == "free"]
         if len(free_maps) != 1:
             return
-
         key = free_maps[0]
         state["maps"][key].update({"status": "picked", "team": "DECIDER", "slot": step["slot"]})
         state["step"] += 1
-
 
 # =========================
 # UI
@@ -294,11 +306,11 @@ async def keep_alive():
 
 @bot.command()
 async def start(ctx, series: str, teamA: discord.Role, teamB: discord.Role):
-    series_up = series.upper()
-    flow = FLOW_BO5 if series_up == "BO5" else FLOW_BO3
+    series = series.upper()
+    flow = FLOW_BO5 if series == "BO5" else FLOW_BO3
 
     MATCHES[ctx.channel.id] = {
-        "series": series_up,
+        "series": series,
         "flow": flow,
         "step": 0,
         "maps": build_maps(),
@@ -308,30 +320,14 @@ async def start(ctx, series: str, teamA: discord.Role, teamB: discord.Role):
         }
     }
 
-    # ✅ manda estado inicial al overlay si ya está conectado
     await ws_broadcast(str(ctx.channel.id))
-
+    await ctx.send("Pick & Ban iniciado.")
     await ctx.send(
         embed=build_embed(MATCHES[ctx.channel.id]),
         view=PickBanView(ctx.channel.id)
     )
 
-async def start_web():
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", PORT)
-    await site.start()
-
-@bot.event
-async def on_ready():
-    asyncio.create_task(keep_alive())
-    asyncio.create_task(start_web())
-    
-    print("Bot listo y keep-alive activo")
-
-
-bot.run(os.getenv("DISCORD_TOKEN"))
-
-
-
-
+# =========================
+# RUN
+# =========================
+bot.run(TOKEN)
