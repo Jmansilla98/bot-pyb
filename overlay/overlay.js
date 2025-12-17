@@ -53,7 +53,7 @@ function render(state) {
 
     card.innerHTML = `
       <div class="map-img" style="background-image:url('/static/maps/${mapName}.jpg')"></div>
-      <div class="map-name">${mapName}</div>
+      <div class="map-name">./maps/${mapName}</div>
       ${m.side ? `<div class="map-side">${m.side}</div>` : ""}
     `;
 
