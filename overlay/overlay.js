@@ -30,18 +30,12 @@ function render(state) {
     ? `${step.type.toUpperCase()} — TEAM ${step.team || ""}`
     : "FINALIZADO";
 
-  // =========================
-  // PICKED MAPS (ORDERED)
-  // =========================
   const picked = Object.entries(state.maps)
     .filter(([_, m]) => m.status === "picked")
     .sort((a, b) => a[1].slot - b[1].slot);
 
-  // =========================
-  // FINAL MAPS TOP
-  // =========================
+  /* TOP MAPS */
   finalTop.innerHTML = "";
-
   if (!finished) {
     picked.forEach(([key, m]) => {
       const name = key.split("::")[1];
@@ -60,11 +54,8 @@ function render(state) {
     });
   }
 
-  // =========================
-  // ACTIVE MODE MAPS
-  // =========================
+  /* ACTIVE MODE */
   mapsEl.innerHTML = "";
-
   const activeMode = step?.mode;
 
   Object.entries(state.maps)
@@ -89,13 +80,10 @@ function render(state) {
           </div>
         </div>
       `;
-
       mapsEl.appendChild(card);
     });
 
-  // =========================
-  // FINAL CENTER
-  // =========================
+  /* FINAL CENTER */
   if (finished) {
     finalCenter.classList.remove("hidden");
     finalCenter.innerHTML = "";
@@ -115,7 +103,6 @@ function render(state) {
       `;
       finalCenter.appendChild(div);
     });
-
   } else {
     finalCenter.classList.add("hidden");
   }
