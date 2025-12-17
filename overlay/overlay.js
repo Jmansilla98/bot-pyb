@@ -39,9 +39,9 @@ function render(state) {
     card.className = "map-card";
     if (m.status) card.classList.add(m.status);
     if (m.slot === 3) card.classList.add("big");
-
+    const imgName = name.charAt(0).toLowerCase() + name.slice(1);
     card.innerHTML = `
-      <div class="map-img" style="background-image:url('/static/maps/${name}.jpg')"></div>
+      <div class="map-img" style="background-image:url('/static/maps/${imgName}.jpg')"></div>
       <div class="map-overlay"></div>
       <div class="map-info">
         <div class="map-name">${name}</div>
