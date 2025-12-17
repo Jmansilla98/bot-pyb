@@ -17,8 +17,7 @@ BASE_DIR = pathlib.Path(__file__).parent
 OVERLAY_DIR = BASE_DIR / "overlay"
 
 
-# sirve JS / CSS / imágenes
-app.router.add_static("/static/", OVERLAY_DIR)
+
 # =========================
 # DISCORD
 # =========================
@@ -75,6 +74,8 @@ FLOW_BO3 = [
 # AIOHTTP APP
 # =========================
 app = web.Application()
+# sirve JS / CSS / imágenes
+app.router.add_static("/static/", OVERLAY_DIR)
 routes = web.RouteTableDef()
 
 @routes.get("/")
