@@ -4,24 +4,11 @@ const match = params.get("match");
 const teamAEl = document.getElementById("teamA");
 const teamBEl = document.getElementById("teamB");
 const estadoEl = document.getElementById("estado");
-const mapasEl = document.getElementById("maps");
+const modeEl = document.getElementById("mode");
+const mapsEl = document.getElementById("maps");
 
-if (!match) {
-  estadoEl.textContent = "Falta ?match=";
-  throw new Error("Missing match param");
-}
-
-// 🔥 WebSocket Fly / local compatible
 const wsProto = location.protocol === "https:" ? "wss" : "ws";
-const wsUrl = `${wsProto}://${location.host}/ws?match=${encodeURIComponent(match)}`;
-
-console.log("WS:", wsUrl);
-
-const ws = new WebSocket(wsUrl);
-
-ws.onopen = () => console.log("WS open");
-ws.onclose = () => console.log("WS close");
-ws.onerror = (e) => console.log("WS error", e);
+const ws = new WebSocket(`${wsProto}://${location.host}/ws?match=${match}`);
 
 ws.onmessage = (ev) => {
   const data = JSON.parse(ev.data);
@@ -30,33 +17,41 @@ ws.onmessage = (ev) => {
 };
 
 function render(state) {
-  // Teams
-  teamAEl.textContent = state.teams?.A?.name || "TEAM A";
-  teamBEl.textContent = state.teams?.B?.name || "TEAM B";
+  teamAEl.textContent = state.teams.A.name;
+  teamBEl.textContent = state.teams.B.name;
 
-  // Estado actual
   const step = state.flow[state.step];
+  modeEl.textContent = step?.mode || "";
   estadoEl.textContent = step
-    ? `${step.type} ${step.mode || ""}`.toUpperCase()
+    ? `${step.type} — TEAM ${step.team || ""}`
     : "FINALIZADO";
 
-  mapasEl.innerHTML = "";
+  mapsEl.innerHTML = "";
 
-  Object.entries(state.maps).forEach(([key, m]) => {
-    const mapName = key.split("::")[1];
+  const activeMode = step?.mode;
+  const maps = Object.entries(state.maps)
+    .filter(([_, m]) => m.mode === activeMode);
+
+  maps.forEach(([key, m]) => {
+    const name = key.split("::")[1];
 
     const card = document.createElement("div");
-    card.classList.add("map-card");
-
-    if (m.status === "banned") card.classList.add("ban");
-    if (m.status === "picked") card.classList.add("pick");
+    card.className = "map-card";
+    if (m.status) card.classList.add(m.status);
+    if (m.slot === 3) card.classList.add("big");
 
     card.innerHTML = `
-      <div class="map-img" style="background-image:url('/static/maps/${mapName.toLowerCase}.jpg')"></div>
-      <div class="map-name">${mapName}</div>
-      ${m.side ? `<div class="map-side">${m.side}</div>` : ""}
+      <div class="map-img" style="background-image:url('/static/maps/${name}.jpg')"></div>
+      <div class="map-overlay"></div>
+      <div class="map-info">
+        <div class="map-name">${name}</div>
+        <div class="map-meta">
+          ${m.status.toUpperCase()} — TEAM ${str.lower(m.team) || ""}
+          ${m.side ? ` — ${m.side}` : ""}
+        </div>
+      </div>
     `;
 
-    mapasEl.appendChild(card);
+    mapsEl.appendChild(card);
   });
 }
