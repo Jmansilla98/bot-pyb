@@ -75,11 +75,49 @@ body {
   opacity: 0.5;
 }
 
-.estado {
-  font-size: 24px;
-  font-weight: 600;
-  color: #00ff88;
+/* TEAM ACTIVE GLOW */
+.team.active {
+  box-shadow: 0 0 25px rgba(0,255,136,0.9);
 }
+
+/* CENTER TEXT */
+.center {
+  text-align: center;
+}
+
+.estado {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: #00ff88;
+  text-transform: uppercase;
+}
+
+/* BAN FIX (ESTADO REAL) */
+.map-card.banned .map-img {
+  filter: grayscale(1) brightness(0.1) blur(2px);
+}
+
+.map-card.banned::after {
+  content: "BANNED";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: 5px;
+  color: rgba(255,255,255,0.35);
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(0,0,0,0.85),
+    rgba(0,0,0,0.85) 10px,
+    rgba(0,0,0,0.75) 10px,
+    rgba(0,0,0,0.75) 20px
+  );
+}
+
 
 
 /* =========================
@@ -205,22 +243,28 @@ body {
 /* =========================
    BAN (NEGRO CDL)
 ========================= */
-.map-card.ban .map-img {
-  filter: grayscale(1) brightness(0.1) blur(1.5px);
+.map-card.banned .map-img {
+  filter: grayscale(1) brightness(0.1) blur(2px);
 }
 
-.map-card.ban::after {
+.map-card.banned::after {
   content: "BANNED";
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 900;
-  letter-spacing: 4px;
-  color: rgba(255,255,255,0.4);
-  background: rgba(0,0,0,0.7);
+  letter-spacing: 5px;
+  color: rgba(255,255,255,0.35);
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(0,0,0,0.85),
+    rgba(0,0,0,0.85) 10px,
+    rgba(0,0,0,0.75) 10px,
+    rgba(0,0,0,0.75) 20px
+  );
 }
 
 

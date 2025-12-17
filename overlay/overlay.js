@@ -22,19 +22,27 @@ function render(state) {
   teamAEl.textContent = state.teams.A.name;
   teamBEl.textContent = state.teams.B.name;
 
+  // 🔥 RESET GLOW
+  teamAEl.classList.remove("active");
+  teamBEl.classList.remove("active");
+
   const step = state.flow[state.step];
   const finished = state.step >= state.flow.length;
 
+  if (step?.team === "A") teamAEl.classList.add("active");
+  if (step?.team === "B") teamBEl.classList.add("active");
+
   modeEl.textContent = step?.mode || "";
   estadoEl.textContent = step
-    ? `${step.type.toUpperCase()} — TEAM ${step.team || ""}`
+    ? `${step.type.replace("_", " ").toUpperCase()} · TEAM ${step.team || ""}`
     : "FINALIZADO";
 
+  /* MAPAS PICKED */
   const picked = Object.entries(state.maps)
     .filter(([_, m]) => m.status === "picked")
     .sort((a, b) => a[1].slot - b[1].slot);
 
-  /* TOP MAPS */
+  /* TOP */
   finalTop.innerHTML = "";
   if (!finished) {
     picked.forEach(([key, m]) => {
@@ -54,7 +62,7 @@ function render(state) {
     });
   }
 
-  /* ACTIVE MODE */
+  /* ACTIVE MODE MAPS */
   mapsEl.innerHTML = "";
   const activeMode = step?.mode;
 
@@ -66,8 +74,8 @@ function render(state) {
 
       const card = document.createElement("div");
       card.className = "map-card";
-      if (m.status) card.classList.add(m.status);
-      if (m.slot === 3) card.classList.add("big");
+      if (m.status === "picked") card.classList.add("pick");
+      if (m.status === "banned") card.classList.add("banned");
 
       card.innerHTML = `
         <div class="map-img" style="background-image:url('/static/maps/${img}.jpg')"></div>
@@ -75,7 +83,7 @@ function render(state) {
         <div class="map-info">
           <div class="map-name">${name}</div>
           <div class="map-meta">
-            ${m.status.toUpperCase()} — TEAM ${m.team || ""}
+            ${m.status.toUpperCase()} · TEAM ${m.team || ""}
             ${m.side ? " · " + m.side : ""}
           </div>
         </div>
@@ -93,12 +101,13 @@ function render(state) {
       const img = name.charAt(0).toLowerCase() + name.slice(1);
 
       const div = document.createElement("div");
-      div.className = "final-map";
+      div.className = "final-map big";
       div.innerHTML = `
         <div class="map-img" style="background-image:url('/static/maps/${img}.jpg')"></div>
         <div class="label">
-          M${m.slot} · ${m.mode}<br>
-          Pick ${m.team}${m.side ? " · " + m.side : ""}
+          MAP ${m.slot} · ${m.mode}<br>
+          ${state.teams[m.team]?.name || m.team}
+          ${m.side ? " · " + m.side : ""}
         </div>
       `;
       finalCenter.appendChild(div);
