@@ -253,9 +253,9 @@ class SideButton(discord.ui.Button):
         await interaction.response.defer()
 
         for m in state["maps"].values():
-        if m["slot"] == step.get("slot"):
-            m["side"] = self.side
-            break
+            if m["slot"] == step.get("slot"):
+                m["side"] = self.side
+                break
 
         state["step"] += 1
         await auto_decider(state)
