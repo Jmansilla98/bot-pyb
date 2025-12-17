@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Pick & Ban Overlay</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
 
@@ -11,16 +11,18 @@
 
   <!-- HEADER -->
   <div class="top-bar">
-    <div class="team left" id="teamA">TEAM 1</div>
-    <div class="center-info">
-      <div class="mode">SnD</div>
-      <div id="estado" class="turn">Picking side – TEAM A</div>
+    <div id="teamA" class="team left">TEAM A</div>
+
+    <div class="center">
+      <div class="mode">PICK & BAN</div>
+      <div id="estado" class="estado">Esperando…</div>
     </div>
-    <div class="team right" id="teamB">TEAM 2</div>
+
+    <div id="teamB" class="team right">TEAM B</div>
   </div>
 
-  <!-- MAP GRID -->
-  <div class="map-grid" id="maps"></div>
+  <!-- MAPAS -->
+  <div id="maps" class="map-grid"></div>
 
 </div>
 
