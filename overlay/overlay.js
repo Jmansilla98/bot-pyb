@@ -18,11 +18,21 @@ ws.onmessage = (ev) => {
   render(data.state);
 };
 
+/* =========================
+   MAP NAME → IMAGE SLUG
+========================= */
+function mapToImage(name) {
+  return name
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
 function render(state) {
   teamAEl.textContent = state.teams.A.name;
   teamBEl.textContent = state.teams.B.name;
 
-  // 🔥 RESET GLOW
+  // RESET GLOW
   teamAEl.classList.remove("active");
   teamBEl.classList.remove("active");
 
@@ -37,17 +47,21 @@ function render(state) {
     ? `${step.type.replace("_", " ").toUpperCase()} · TEAM ${step.team || ""}`
     : "FINALIZADO";
 
-  /* MAPAS PICKED */
+  /* =========================
+     MAPAS PICKED
+  ========================= */
   const picked = Object.entries(state.maps)
     .filter(([_, m]) => m.status === "picked")
     .sort((a, b) => a[1].slot - b[1].slot);
 
-  /* TOP */
+  /* =========================
+     TOP MAPS
+  ========================= */
   finalTop.innerHTML = "";
   if (!finished) {
     picked.forEach(([key, m]) => {
       const name = key.split("::")[1];
-      const img = name.charAt(0).toLowerCase() + name.slice(1);
+      const img = mapToImage(name);
 
       const div = document.createElement("div");
       div.className = "final-map";
@@ -62,7 +76,9 @@ function render(state) {
     });
   }
 
-  /* ACTIVE MODE MAPS */
+  /* =========================
+     ACTIVE MODE MAPS
+  ========================= */
   mapsEl.innerHTML = "";
   const activeMode = step?.mode;
 
@@ -70,7 +86,7 @@ function render(state) {
     .filter(([_, m]) => m.mode === activeMode)
     .forEach(([key, m]) => {
       const name = key.split("::")[1];
-      const img = name.charAt(0).toLowerCase() + name.slice(1);
+      const img = mapToImage(name);
 
       const card = document.createElement("div");
       card.className = "map-card";
@@ -91,14 +107,16 @@ function render(state) {
       mapsEl.appendChild(card);
     });
 
-  /* FINAL CENTER */
+  /* =========================
+     FINAL CENTER
+  ========================= */
   if (finished) {
     finalCenter.classList.remove("hidden");
     finalCenter.innerHTML = "";
 
     picked.forEach(([key, m]) => {
       const name = key.split("::")[1];
-      const img = name.charAt(0).toLowerCase() + name.slice(1);
+      const img = mapToImage(name);
 
       const div = document.createElement("div");
       div.className = "final-map big";
