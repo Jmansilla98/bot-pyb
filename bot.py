@@ -4,6 +4,7 @@ import asyncio
 import json
 from aiohttp import web
 import aiohttp
+import pathlib
 import os
 
 # =========================
@@ -12,7 +13,18 @@ import os
 APP_URL = os.getenv("APP_URL")
 PORT = int(os.getenv("PORT", "8080"))
 TOKEN = os.getenv("DISCORD_TOKEN")
+BASE_DIR = pathlib.Path(__file__).parent
+OVERLAY_DIR = BASE_DIR / "overlay"
+@routes.get("/")
+async def index(request):
+    return web.FileResponse(OVERLAY_DIR / "overlay.html")
 
+@routes.get("/overlay.html")
+async def overlay(request):
+    return web.FileResponse(OVERLAY_DIR / "overlay.html")
+
+# sirve JS / CSS / imágenes
+app.router.add_static("/static/", OVERLAY_DIR)
 # =========================
 # DISCORD
 # =========================
@@ -319,12 +331,15 @@ async def start(ctx, series: str, teamA: discord.Role, teamB: discord.Role):
             "B": {"name": teamB.name, "logo": f"{teamB.name}.png"},
         }
     }
-
+    overlay_url = f"https://bot-pyb.fly.dev/overlay.html?match={ctx.channel.id}"
     await ws_broadcast(str(ctx.channel.id))
     await ctx.send("Pick & Ban iniciado.")
     await ctx.send(
         embed=build_embed(MATCHES[ctx.channel.id]),
         view=PickBanView(ctx.channel.id)
+    )
+    await ctx.send(
+        f"🎥 **Overlay OBS**:\n{overlay_url}"
     )
 
 # =========================
