@@ -205,15 +205,15 @@ class MapButton(discord.ui.Button):
             await interaction.message.edit(view=None)
             return
         
-    if not user_can_interact(interaction, state, step):
-        await interaction.response.send_message(
-        "⛔ No es tu turno.",
-        ephemeral=True
-    )
-    return
+        
 
         step = state["flow"][state["step"]]
-
+        if not user_can_interact(interaction, state, step):
+            await interaction.response.send_message(
+            "⛔ No es tu turno.",
+            ephemeral=True
+        )
+            return
         if step["type"] == "ban":
             state["maps"][self.map_key].update({"status": "banned", "team": step["team"]})
 
@@ -246,15 +246,15 @@ class SideButton(discord.ui.Button):
         if state.get("step", 0) >= len(state.get("flow", [])):
             await interaction.message.edit(view=None)
             return
+        
+
+        step = state["flow"][state["step"]]
         if not user_can_interact(interaction, state, step):
             await interaction.response.send_message(
             "⛔ No es tu turno.",
                 ephemeral=True
             )
             return
-            
-        step = state["flow"][state["step"]]
-
         # asigna side al mapa que tenga el slot correspondiente
         for m in state["maps"].values():
             if m["slot"] == step.get("slot"):
