@@ -1,4 +1,6 @@
 discord.py==2.4.0
 requests
-fastapi
-uvicorn
+websockets
+google-api-python-client
+google-auth
+

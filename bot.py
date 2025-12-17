@@ -1,183 +1,337 @@
-# ===========================
-# bot.py — OVERLAY ESTABLE
-# ===========================
-
 import discord
 from discord.ext import commands
-import os, json, base64, requests, socket, threading
+import asyncio
+import json
+from aiohttp import web
+import aiohttp
+import os
 
-# ===========================
-# TCP HEALTH CHECK (KOYEB)
-# ===========================
-def run_tcp_healthcheck():
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(("0.0.0.0", int(os.getenv("PORT", 8000))))
-    s.listen(1)
-    while True:
-        c, _ = s.accept()
-        c.close()
+APP_URL = os.getenv("APP_URL")
+PORT = int(os.getenv("PORT", "8080"))
 
-# ===========================
-# DISCORD
-# ===========================
+
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ===========================
-# GITHUB
-# ===========================
-GITHUB_USER = "Jmansilla98"
-GITHUB_REPO = "Overlay-cod-fecod"
-MATCHES_PATH = "matches"
-TOKEN = os.getenv("GITHUB_TOKEN")
+MATCHES = {}
+WS_CLIENTS = {}  # match_id(str) -> set(ws)
 
-OVERLAY_BASE = f"https://{GITHUB_USER}.github.io/{GITHUB_REPO}"
+HP_MAPS = ["Blackheart", "Colossus", "Den", "Exposure", "Scar"]
+SND_MAPS = ["Colossus", "Den", "Exposure", "Raid", "Scar"]
+OVR_MAPS = ["Den", "Exposure", "Scar"]
 
-def gh_headers():
-    return {
-        "Authorization": f"token {TOKEN}",
-        "Accept": "application/vnd.github.v3+json"
-    }
+FLOW_BO5 = [
+    {"mode": "HP", "type": "ban", "team": "A"},
+    {"mode": "HP", "type": "ban", "team": "B"},
+    {"mode": "HP", "type": "pick_map", "team": "A", "slot": 1},
+    {"mode": "HP", "type": "pick_side", "team": "B", "slot": 1},
+    {"mode": "HP", "type": "pick_map", "team": "B", "slot": 4},
+    {"mode": "HP", "type": "pick_side", "team": "A", "slot": 4},
 
-def subir_overlay(channel_id, payload):
-    url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{MATCHES_PATH}/{channel_id}.json"
-    content = base64.b64encode(json.dumps(payload, indent=2).encode()).decode()
+    {"mode": "SnD", "type": "ban", "team": "B"},
+    {"mode": "SnD", "type": "ban", "team": "A"},
+    {"mode": "SnD", "type": "pick_map", "team": "B", "slot": 2},
+    {"mode": "SnD", "type": "pick_side", "team": "A", "slot": 2},
+    {"mode": "SnD", "type": "pick_map", "team": "A", "slot": 5},
+    {"mode": "SnD", "type": "pick_side", "team": "B", "slot": 5},
 
-    r = requests.get(url, headers=gh_headers())
-    sha = r.json().get("sha") if r.status_code == 200 else None
-
-    body = {"message": "update overlay", "content": content}
-    if sha:
-        body["sha"] = sha
-
-    requests.put(url, headers=gh_headers(), json=body)
-
-# ===========================
-# MAPAS
-# ===========================
-MAPAS = {
-    "HP": ["Blackheart", "Colossus", "Den", "Exposure", "Scar"],
-    "SnD": ["Colossus", "Den", "Exposure", "Raid", "Scar"],
-    "Overload": ["Den", "Exposure", "Scar"]
-}
-
-FLUJO_BO5 = [
-    ("ban","HP","A"),("ban","HP","B"),
-    ("pick","HP","A"),("side","HP","B"),
-    ("pick","HP","B"),("side","HP","A"),
-
-    ("ban","SnD","B"),("ban","SnD","A"),
-    ("pick","SnD","B"),("side","SnD","A"),
-    ("pick","SnD","A"),("side","SnD","B"),
-
-    ("ban","Overload","A"),("ban","Overload","B"),
-    ("side","Overload","A")
+    {"mode": "OVR", "type": "ban", "team": "A"},
+    {"mode": "OVR", "type": "ban", "team": "B"},
+    {"mode": "OVR", "type": "auto_decider", "slot": 3},
+    {"mode": "OVR", "type": "pick_side", "team": "A", "slot": 3},
 ]
 
-# ===========================
-# ESTADO
-# ===========================
-matches = {}
+FLOW_BO3 = [
+    {"mode": "HP", "type": "ban", "team": "A"},
+    {"mode": "HP", "type": "ban", "team": "B"},
+    {"mode": "HP", "type": "pick_map", "team": "A", "slot": 1},
+    {"mode": "HP", "type": "pick_side", "team": "B", "slot": 1},
 
-def estado_overlay(match):
-    return {
-        "equipoA": match["equipoA"],
-        "equipoB": match["equipoB"],
-        "estado": "Pick & Ban",
-        "mapas": match["mapas"]
-    }
+    {"mode": "SnD", "type": "ban", "team": "B"},
+    {"mode": "SnD", "type": "ban", "team": "A"},
+    {"mode": "SnD", "type": "pick_map", "team": "B", "slot": 2},
+    {"mode": "SnD", "type": "pick_side", "team": "A", "slot": 2},
 
-# ===========================
-# BOTONES
-# ===========================
-class MapaButton(discord.ui.Button):
-    def __init__(self, mapa, modo, cid):
-        super().__init__(label=mapa, style=discord.ButtonStyle.primary)
-        self.mapa, self.modo, self.cid = mapa, modo, cid
+    {"mode": "OVR", "type": "ban", "team": "A"},
+    {"mode": "OVR", "type": "ban", "team": "B"},
+    {"mode": "OVR", "type": "auto_decider", "slot": 3},
+    {"mode": "OVR", "type": "pick_side", "team": "A", "slot": 3},
+]
 
-    async def callback(self, i):
-        m = matches[self.cid]
-        accion, modo, eq = m["flujo"][m["paso"]]
+routes = web.RouteTableDef()
 
-        entry = {
-            "modo": modo,
-            "mapa": self.mapa,
-            "estado": accion,
-            "equipo": eq,
-            "bando": None
-        }
+@routes.get("/ws")
+async def websocket_handler(request):
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+    # aquí tu lógica WS
+    return ws
 
-        m["mapas"].append(entry)
-        m["paso"] += 1
+@routes.get("/")
+async def index(request):
+    return web.FileResponse("overlay.html")
 
-        subir_overlay(self.cid, estado_overlay(m))
-        await avanzar(i)
+app.add_routes(routes)
+# =========================
+# WEBSOCKET
+# =========================
+async def ws_handler(request):
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
 
-class BandoButton(discord.ui.Button):
-    def __init__(self, label, cid):
-        super().__init__(label=label, style=discord.ButtonStyle.secondary)
-        self.cid = cid
+    # Compatible con ?match= y ?channel=
+    match_id = request.query.get("match") or request.query.get("channel")
+    if not match_id:
+        await ws.close()
+        return ws
 
-    async def callback(self, i):
-        m = matches[self.cid]
-        m["mapas"][-1]["bando"] = self.label
-        m["paso"] += 1
+    WS_CLIENTS.setdefault(match_id, set()).add(ws)
+    print(f"🟢 Overlay conectado al match {match_id}")
 
-        subir_overlay(self.cid, estado_overlay(m))
-        await avanzar(i)
+    # Si ya existe estado para ese match, mandarlo al conectar
+    if int(match_id) in MATCHES:
+        await ws_broadcast(match_id)
 
-class MapaView(discord.ui.View):
-    def __init__(self, modo, cid):
-        super().__init__(timeout=None)
-        for m in MAPAS[modo]:
-            self.add_item(MapaButton(m, modo, cid))
+    try:
+        async for _ in ws:
+            pass
+    finally:
+        WS_CLIENTS[match_id].discard(ws)
+        print(f"🔴 Overlay desconectado del match {match_id}")
 
-class BandoView(discord.ui.View):
-    def __init__(self, cid):
-        super().__init__(timeout=None)
-        self.add_item(BandoButton("Ataque", cid))
-        self.add_item(BandoButton("Defensa", cid))
+    return ws
 
-# ===========================
-# FLUJO
-# ===========================
-async def avanzar(i):
-    m = matches[i.channel.id]
 
-    if m["paso"] >= len(m["flujo"]):
-        await i.response.edit_message(content="✅ Pick & Ban finalizado")
+async def ws_broadcast(match_id: str):
+    state = MATCHES.get(int(match_id))
+    if not state:
         return
 
-    accion, modo, _ = m["flujo"][m["paso"]]
-    view = MapaView(modo, i.channel.id) if accion in ("ban","pick") else BandoView(i.channel.id)
-    await i.response.edit_message(content=f"{accion.upper()} {modo}", view=view)
+    payload = json.dumps({"type": "state", "state": state})
 
-# ===========================
-# COMANDO
-# ===========================
+    for ws in list(WS_CLIENTS.get(match_id, [])):
+        try:
+            await ws.send_str(payload)
+        except:
+            WS_CLIENTS[match_id].discard(ws)
+
+
+async def start_ws():
+    app = web.Application()
+    app.router.add_get("/ws", ws_handler)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 8765)
+    await site.start()
+    print("🟢 WS activo en ws://localhost:8765/ws")
+
+
+# =========================
+# BOT
+# =========================
+class PickBanBot(commands.Bot):
+    async def setup_hook(self):
+        asyncio.create_task(start_ws())
+
+bot = PickBanBot(command_prefix="!", intents=intents)
+
+
+def build_maps():
+    maps = {}
+    for m in HP_MAPS:
+        maps[f"HP::{m}"] = {"mode": "HP", "status": "free", "team": None, "slot": None, "side": None}
+    for m in SND_MAPS:
+        maps[f"SnD::{m}"] = {"mode": "SnD", "status": "free", "team": None, "slot": None, "side": None}
+    for m in OVR_MAPS:
+        maps[f"OVR::{m}"] = {"mode": "OVR", "status": "free", "team": None, "slot": None, "side": None}
+    return maps
+
+
+async def auto_decider(state):
+    # Avanza automáticamente cualquier step "auto_decider" si queda 1 mapa libre en ese modo
+    while state["step"] < len(state["flow"]):
+        step = state["flow"][state["step"]]
+        if step["type"] != "auto_decider":
+            return
+
+        free_maps = [k for k, m in state["maps"].items() if m["mode"] == step["mode"] and m["status"] == "free"]
+        if len(free_maps) != 1:
+            return
+
+        key = free_maps[0]
+        state["maps"][key].update({"status": "picked", "team": "DECIDER", "slot": step["slot"]})
+        state["step"] += 1
+
+
+# =========================
+# UI
+# =========================
+class MapButton(discord.ui.Button):
+    def __init__(self, channel_id, map_key):
+        self.channel_id = channel_id
+        self.map_key = map_key
+        super().__init__(label=map_key.split("::")[1], style=discord.ButtonStyle.secondary)
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+
+        state = MATCHES[self.channel_id]
+
+        # ✅ GUARD: si el flow terminó, quita la view y sal
+        if state.get("step", 0) >= len(state.get("flow", [])):
+            await interaction.message.edit(view=None)
+            return
+
+        step = state["flow"][state["step"]]
+
+        if step["type"] == "ban":
+            state["maps"][self.map_key].update({"status": "banned", "team": step["team"]})
+
+        elif step["type"] == "pick_map":
+            state["maps"][self.map_key].update({"status": "picked", "team": step["team"], "slot": step["slot"]})
+
+        state["step"] += 1
+        await auto_decider(state)
+        await ws_broadcast(str(self.channel_id))
+
+        # ✅ tras defer → interaction.message.edit
+        await interaction.message.edit(
+            embed=build_embed(state),
+            view=PickBanView(self.channel_id) if state["step"] < len(state["flow"]) else None
+        )
+
+
+class SideButton(discord.ui.Button):
+    def __init__(self, channel_id, side):
+        self.channel_id = channel_id
+        self.side = side
+        super().__init__(label=side, style=discord.ButtonStyle.primary)
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+
+        state = MATCHES[self.channel_id]
+
+        # ✅ GUARD: si el flow terminó, quita la view y sal
+        if state.get("step", 0) >= len(state.get("flow", [])):
+            await interaction.message.edit(view=None)
+            return
+
+        step = state["flow"][state["step"]]
+
+        # asigna side al mapa que tenga el slot correspondiente
+        for m in state["maps"].values():
+            if m["slot"] == step.get("slot"):
+                m["side"] = self.side
+                break
+
+        state["step"] += 1
+        await auto_decider(state)
+        await ws_broadcast(str(self.channel_id))
+
+        await interaction.message.edit(
+            embed=build_embed(state),
+            view=PickBanView(self.channel_id) if state["step"] < len(state["flow"]) else None
+        )
+
+
+class PickBanView(discord.ui.View):
+    def __init__(self, channel_id):
+        super().__init__(timeout=None)
+        state = MATCHES[channel_id]
+
+        # ✅ si ya terminó, no construyas botones
+        if state["step"] >= len(state["flow"]):
+            return
+
+        step = state["flow"][state["step"]]
+
+        if step["type"] in ("ban", "pick_map"):
+            for k, m in state["maps"].items():
+                if m["mode"] == step["mode"] and m["status"] == "free":
+                    self.add_item(MapButton(channel_id, k))
+
+        elif step["type"] == "pick_side":
+            self.add_item(SideButton(channel_id, "JSOC"))
+            self.add_item(SideButton(channel_id, "HERMANDAD"))
+
+
+def build_embed(state):
+    embed = discord.Embed(title=f"PICK & BAN — {state['series']}", color=0x2ecc71)
+
+    for mode in ["HP", "SnD", "OVR"]:
+        lines = []
+        for k, m in state["maps"].items():
+            if m["mode"] != mode:
+                continue
+            name = k.split("::")[1]
+
+            if m["status"] == "banned":
+                lines.append(f"❌ {name} (Ban {m['team']})")
+
+            elif m["status"] == "picked":
+                side = f" — Side {m['side']}" if m["side"] else ""
+                slot = f"M{m['slot']}" if m["slot"] else "M?"
+                lines.append(f"✅ {name} — {slot} (Pick {m['team']}){side}")
+
+            else:
+                lines.append(f"⬜ {name}")
+
+        embed.add_field(name=mode, value="\n".join(lines) or "—", inline=False)
+
+    return embed
+
+async def keep_alive():
+    if not APP_URL:
+        return
+    async with aiohttp.ClientSession() as session:
+        while True:
+            try:
+                await session.get(APP_URL)
+            except:
+                pass
+            await asyncio.sleep(300)  # cada 5 minutos
+
 @bot.command()
-async def setpartido(ctx, teamA: discord.Role, teamB: discord.Role):
-    cid = ctx.channel.id
+async def start(ctx, series: str, teamA: discord.Role, teamB: discord.Role):
+    series_up = series.upper()
+    flow = FLOW_BO5 if series_up == "BO5" else FLOW_BO3
 
-    matches[cid] = {
-        "equipoA": teamA.name,
-        "equipoB": teamB.name,
-        "flujo": FLUJO_BO5,
-        "paso": 0,
-        "mapas": []
+    MATCHES[ctx.channel.id] = {
+        "series": series_up,
+        "flow": flow,
+        "step": 0,
+        "maps": build_maps(),
+        "teams": {
+            "A": {"name": teamA.name, "logo": f"{teamA.name}.png"},
+            "B": {"name": teamB.name, "logo": f"{teamB.name}.png"},
+        }
     }
 
-    subir_overlay(cid, estado_overlay(matches[cid]))
+    # ✅ manda estado inicial al overlay si ya está conectado
+    await ws_broadcast(str(ctx.channel.id))
 
     await ctx.send(
-        f"🎥 Overlay:\n{OVERLAY_BASE}/?match={cid}",
-        view=MapaView("HP", cid)
+        embed=build_embed(MATCHES[ctx.channel.id]),
+        view=PickBanView(ctx.channel.id)
     )
 
-# ===========================
-# RUN
-# ===========================
-if __name__ == "__main__":
-    threading.Thread(target=run_tcp_healthcheck, daemon=True).start()
-    bot.run(os.getenv("DISCORD_TOKEN"))
+async def start_web():
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
+
+@bot.event
+async def on_ready():
+    asyncio.create_task(keep_alive())
+    asyncio.create_task(start_web())
+    
+    print("Bot listo y keep-alive activo")
+
+
+bot.run(os.getenv("DISCORD_TOKEN"))
+
+
+
+
