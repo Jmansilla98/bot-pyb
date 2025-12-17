@@ -46,7 +46,7 @@ function render(state) {
       <div class="map-info">
         <div class="map-name">${name}</div>
         <div class="map-meta">
-          ${m.status.toUpperCase()} — TEAM ${str.lower(m.team) || ""}
+          ${m.status.toUpperCase()} — TEAM ${(m.team) || ""}
           ${m.side ? ` — ${m.side}` : ""}
         </div>
       </div>
