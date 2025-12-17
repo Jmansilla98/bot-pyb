@@ -196,39 +196,41 @@ class MapButton(discord.ui.Button):
         super().__init__(label=map_key.split("::")[1], style=discord.ButtonStyle.secondary)
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-    
         state = MATCHES[self.channel_id]
-
-        # ✅ GUARD: si el flow terminó, quita la view y sal
-        if state.get("step", 0) >= len(state.get("flow", [])):
-            await interaction.message.edit(view=None)
-            return
-        
-        
-
         step = state["flow"][state["step"]]
+
+    # ⛔ PERMISOS ANTES DE RESPONDER
         if not user_can_interact(interaction, state, step):
             await interaction.response.send_message(
-            "⛔ No es tu turno.",
-            ephemeral=True
-        )
+                "⛔ No es tu turno.",
+                ephemeral=True
+            )
             return
-        if step["type"] == "ban":
-            state["maps"][self.map_key].update({"status": "banned", "team": step["team"]})
+    # ✅ Ahora sí, defer
+        await interaction.response.defer()
 
+    # ---- lógica existente ----
+        if step["type"] == "ban":
+            state["maps"][self.map_key].update({
+                "status": "banned",
+                "team": step["team"]
+            })
         elif step["type"] == "pick_map":
-            state["maps"][self.map_key].update({"status": "picked", "team": step["team"], "slot": step["slot"]})
+            state["maps"][self.map_key].update({
+                "status": "picked",
+                "team": step["team"],
+                "slot": step["slot"]
+            })
 
         state["step"] += 1
         await auto_decider(state)
         await ws_broadcast(str(self.channel_id))
 
-        # ✅ tras defer → interaction.message.edit
         await interaction.message.edit(
             embed=build_embed(state),
             view=PickBanView(self.channel_id) if state["step"] < len(state["flow"]) else None
         )
+
 
 
 class SideButton(discord.ui.Button):
@@ -238,28 +240,22 @@ class SideButton(discord.ui.Button):
         super().__init__(label=side, style=discord.ButtonStyle.primary)
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-
         state = MATCHES[self.channel_id]
-
-        # ✅ GUARD: si el flow terminó, quita la view y sal
-        if state.get("step", 0) >= len(state.get("flow", [])):
-            await interaction.message.edit(view=None)
-            return
-        
-
         step = state["flow"][state["step"]]
+
         if not user_can_interact(interaction, state, step):
             await interaction.response.send_message(
-            "⛔ No es tu turno.",
+                "⛔ No es tu turno.",
                 ephemeral=True
             )
             return
-        # asigna side al mapa que tenga el slot correspondiente
+
+        await interaction.response.defer()
+
         for m in state["maps"].values():
-            if m["slot"] == step.get("slot"):
-                m["side"] = self.side
-                break
+        if m["slot"] == step.get("slot"):
+            m["side"] = self.side
+            break
 
         state["step"] += 1
         await auto_decider(state)
@@ -269,6 +265,7 @@ class SideButton(discord.ui.Button):
             embed=build_embed(state),
             view=PickBanView(self.channel_id) if state["step"] < len(state["flow"]) else None
         )
+
 
 
 class PickBanView(discord.ui.View):
