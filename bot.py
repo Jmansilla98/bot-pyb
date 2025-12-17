@@ -197,13 +197,20 @@ class MapButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.defer()
-
+    
         state = MATCHES[self.channel_id]
 
         # ✅ GUARD: si el flow terminó, quita la view y sal
         if state.get("step", 0) >= len(state.get("flow", [])):
             await interaction.message.edit(view=None)
             return
+        
+    if not user_can_interact(interaction, state, step):
+        await interaction.response.send_message(
+        "⛔ No es tu turno.",
+        ephemeral=True
+    )
+    return
 
         step = state["flow"][state["step"]]
 
@@ -239,7 +246,13 @@ class SideButton(discord.ui.Button):
         if state.get("step", 0) >= len(state.get("flow", [])):
             await interaction.message.edit(view=None)
             return
-
+        if not user_can_interact(interaction, state, step):
+            await interaction.response.send_message(
+            "⛔ No es tu turno.",
+                ephemeral=True
+            )
+            return
+            
         step = state["flow"][state["step"]]
 
         # asigna side al mapa que tenga el slot correspondiente
@@ -303,6 +316,21 @@ def build_embed(state):
         embed.add_field(name=mode, value="\n".join(lines) or "—", inline=False)
 
     return embed
+def user_can_interact(interaction: discord.Interaction, state: dict, step: dict) -> bool:
+    member = interaction.user
+
+    # 👑 Árbitro puede siempre
+    if any(role.name.lower() == "arbitro" for role in member.roles):
+        return True
+
+    # Si el step no tiene team (auto_decider, etc)
+    if not step.get("team"):
+        return False
+
+    team_key = step["team"]  # "A" o "B"
+    team_role_id = state["teams"][team_key]["role_id"]
+
+    return any(role.id == team_role_id for role in member.roles)
 
 async def keep_alive():
     if not APP_URL:
@@ -326,8 +354,8 @@ async def start(ctx, series: str, teamA: discord.Role, teamB: discord.Role):
         "step": 0,
         "maps": build_maps(),
         "teams": {
-            "A": {"name": teamA.name, "logo": f"{teamA.name}.png"},
-            "B": {"name": teamB.name, "logo": f"{teamB.name}.png"},
+            "A": {"name": teamA.name, "logo": f"{teamA.name}.png", "role_id": teamA.id},
+            "B": {"name": teamB.name, "logo": f"{teamB.name}.png", "role_id": teamB.id},
         }
     }
     overlay_url = f"https://bot-pyb.fly.dev/overlay.html?match={ctx.channel.id}"
