@@ -155,3 +155,81 @@ body {
   50% { box-shadow: 0 0 40px rgba(0,255,136,0.6); }
   100% { box-shadow: 0 0 0 rgba(0,255,136,0.0); }
 }
+
+.final-maps-top {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 40px;
+}
+
+.final-map {
+  width: 260px;
+  height: 140px;
+  position: relative;
+  background: #000;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+}
+
+.final-map .map-img {
+  inset: 0;
+}
+
+.final-map .label {
+  position: absolute;
+  bottom: 8px;
+  left: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  background: rgba(0,0,0,0.7);
+  padding: 4px 8px;
+}
+
+.final-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 40px;
+  background: rgba(0,0,0,0.85);
+}
+
+.final-center .final-map {
+  width: 420px;
+  height: 260px;
+}
+
+.hidden {
+  display: none;
+}
+
+/* BAN CDL */
+.map-card.ban {
+  position: relative;
+}
+
+.map-card.ban .map-img {
+  filter: grayscale(1) brightness(0.15) blur(2px);
+}
+
+.map-card.ban::after {
+  content: "BANNED";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(0,0,0,0.7),
+      rgba(0,0,0,0.7) 12px,
+      rgba(255,255,255,0.08) 12px,
+      rgba(255,255,255,0.08) 24px
+    );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  letter-spacing: 4px;
+  font-weight: 900;
+  color: rgba(255,255,255,0.6);
+}
