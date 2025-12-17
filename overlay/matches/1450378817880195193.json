@@ -1,0 +1,32 @@
+{
+  "match": 1450378817880195193,
+  "equipoA": "team1",
+  "equipoB": "team2",
+  "estado": "Pick & Ban",
+  "turno": "A",
+  "accion": "pick",
+  "modo": "HP",
+  "mapas": [
+    {
+      "slot": null,
+      "modo": "HP",
+      "mapa": "Colossus",
+      "estado": "ban",
+      "equipo": "A",
+      "bandoA": null,
+      "bandoB": null
+    },
+    {
+      "slot": null,
+      "modo": "HP",
+      "mapa": "Den",
+      "estado": "ban",
+      "equipo": "B",
+      "bandoA": null,
+      "bandoB": null
+    }
+  ],
+  "resultados": [],
+  "scoreA": 0,
+  "scoreB": 0
+}

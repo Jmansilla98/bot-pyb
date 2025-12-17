@@ -1,0 +1,137 @@
+{
+  "equipoA": "team1",
+  "equipoB": "team2",
+  "estado": "Finalizado",
+  "formato": "bo5",
+  "turno": "A",
+  "mapas": [
+    {
+      "modo": "HP",
+      "mapa": "Blackheart",
+      "estado": "pick",
+      "equipo": "A",
+      "bando": "Ataque (elige B)"
+    },
+    {
+      "modo": "HP",
+      "mapa": "Colossus",
+      "estado": "ban",
+      "equipo": "A",
+      "bando": null
+    },
+    {
+      "modo": "HP",
+      "mapa": "Den",
+      "estado": "ban",
+      "equipo": "B",
+      "bando": null
+    },
+    {
+      "modo": "HP",
+      "mapa": "Exposure",
+      "estado": "pick",
+      "equipo": "B",
+      "bando": "Ataque (elige A)"
+    },
+    {
+      "modo": "HP",
+      "mapa": "Scar",
+      "estado": "none",
+      "equipo": null,
+      "bando": null
+    },
+    {
+      "modo": "SnD",
+      "mapa": "Colossus",
+      "estado": "none",
+      "equipo": null,
+      "bando": null
+    },
+    {
+      "modo": "SnD",
+      "mapa": "Den",
+      "estado": "ban",
+      "equipo": "B",
+      "bando": null
+    },
+    {
+      "modo": "SnD",
+      "mapa": "Exposure",
+      "estado": "ban",
+      "equipo": "A",
+      "bando": null
+    },
+    {
+      "modo": "SnD",
+      "mapa": "Raid",
+      "estado": "pick",
+      "equipo": "B",
+      "bando": "Ataque (elige A)"
+    },
+    {
+      "modo": "SnD",
+      "mapa": "Scar",
+      "estado": "pick",
+      "equipo": "A",
+      "bando": "Ataque (elige B)"
+    },
+    {
+      "modo": "Overload",
+      "mapa": "Den",
+      "estado": "ban",
+      "equipo": "A",
+      "bando": null
+    },
+    {
+      "modo": "Overload",
+      "mapa": "Exposure",
+      "estado": "ban",
+      "equipo": "B",
+      "bando": null
+    },
+    {
+      "modo": "Overload",
+      "mapa": "Scar",
+      "estado": "pick",
+      "equipo": "AUTO",
+      "bando": null
+    }
+  ],
+  "serie": [
+    {
+      "numero": 1,
+      "modo": "HP",
+      "mapa": "Blackheart",
+      "teamA": "Defensa",
+      "teamB": "Ataque"
+    },
+    {
+      "numero": 2,
+      "modo": "SnD",
+      "mapa": "Raid",
+      "teamA": "Ataque",
+      "teamB": "Defensa"
+    },
+    {
+      "numero": 3,
+      "modo": "Overload",
+      "mapa": "Scar",
+      "teamA": null,
+      "teamB": null
+    },
+    {
+      "numero": 4,
+      "modo": "HP",
+      "mapa": "Exposure",
+      "teamA": "Ataque",
+      "teamB": "Defensa"
+    },
+    {
+      "numero": 5,
+      "modo": "SnD",
+      "mapa": "Scar",
+      "teamA": "Defensa",
+      "teamB": "Ataque"
+    }
+  ]
+}

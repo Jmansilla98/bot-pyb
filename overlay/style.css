@@ -1,0 +1,79 @@
+body {
+  margin: 0;
+  font-family: "Segoe UI", sans-serif;
+  background: transparent;
+  color: white;
+}
+
+#overlay {
+  width: 1920px;
+  height: 1080px;
+  padding: 40px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 42px;
+}
+
+.vs {
+  opacity: 0.6;
+}
+
+.estado {
+  margin-top: 20px;
+  font-size: 28px;
+  opacity: 0.8;
+}
+
+.mapas {
+  margin-top: 40px;
+  display: flex;
+  gap: 20px;
+}
+
+.map-card {
+  width: 260px;
+  height: 160px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #111;
+}
+
+.map-card .map-img {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: brightness(0.9);
+}
+
+.map-card.ban .map-img {
+  filter: brightness(0.25) grayscale(1);
+}
+
+.map-card.pick .map-img {
+  filter: brightness(0.9);
+  box-shadow: inset 0 0 0 5px rgba(0,255,0,0.4);
+}
+
+.map-name {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  font-weight: bold;
+  text-shadow: 0 0 10px black;
+}
+
+.map-side {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 14px;
+  background: rgba(0,0,0,0.6);
+  padding: 4px 8px;
+  border-radius: 4px;
+}

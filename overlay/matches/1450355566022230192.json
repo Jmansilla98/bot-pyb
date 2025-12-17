@@ -1,0 +1,56 @@
+{
+  "equipoA": "team1",
+  "equipoB": "team2",
+  "estado": "Pick & Ban",
+  "mapas": [
+    {
+      "modo": "HP",
+      "mapa": "Colossus",
+      "estado": "ban",
+      "equipo": "A",
+      "bando": null
+    },
+    {
+      "modo": "HP",
+      "mapa": "Den",
+      "estado": "ban",
+      "equipo": "B",
+      "bando": null
+    },
+    {
+      "modo": "HP",
+      "mapa": "Blackheart",
+      "estado": "pick",
+      "equipo": "A",
+      "bando": "Ataque"
+    },
+    {
+      "modo": "HP",
+      "mapa": "Blackheart",
+      "estado": "pick",
+      "equipo": "B",
+      "bando": "Defensa"
+    },
+    {
+      "modo": "SnD",
+      "mapa": "Raid",
+      "estado": "ban",
+      "equipo": "B",
+      "bando": null
+    },
+    {
+      "modo": "SnD",
+      "mapa": "Exposure",
+      "estado": "ban",
+      "equipo": "A",
+      "bando": null
+    },
+    {
+      "modo": "SnD",
+      "mapa": "Scar",
+      "estado": "pick",
+      "equipo": "B",
+      "bando": null
+    }
+  ]
+}

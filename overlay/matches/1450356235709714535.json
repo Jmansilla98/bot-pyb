@@ -1,0 +1,48 @@
+{
+  "equipoA": "team1",
+  "equipoB": "team2",
+  "mapas": [
+    [
+      "HP",
+      "Blackheart"
+    ],
+    [
+      "SnD",
+      "Scar"
+    ],
+    [
+      "Overload",
+      "Den"
+    ],
+    [
+      "HP",
+      "Exposure"
+    ],
+    [
+      "SnD",
+      "Den"
+    ]
+  ],
+  "resultados": [
+    {
+      "A": 250,
+      "B": 0
+    },
+    {
+      "A": 6,
+      "B": 2
+    },
+    {
+      "A": 3,
+      "B": 1
+    },
+    {
+      "A": 250,
+      "B": 0
+    },
+    {
+      "A": 3,
+      "B": 2
+    }
+  ]
+}

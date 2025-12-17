@@ -1,0 +1,13 @@
+{
+  "match": 1450381673584656444,
+  "equipoA": "team1",
+  "equipoB": "team2",
+  "estado": "Pick & Ban",
+  "turno": "A",
+  "accion": null,
+  "modo": null,
+  "mapas": [],
+  "resultados": [],
+  "scoreA": 0,
+  "scoreB": 0
+}

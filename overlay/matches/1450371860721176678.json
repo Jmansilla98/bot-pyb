@@ -1,0 +1,50 @@
+{
+  "match": 1450371860721176678,
+  "equipoA": "team1",
+  "equipoB": "team2",
+  "estado": "Pick & Ban",
+  "turno": "B",
+  "accion": "ban",
+  "modo": "SnD",
+  "mapas": [
+    {
+      "slot": 1,
+      "modo": "HP",
+      "mapa": "Blackheart",
+      "estado": "pick",
+      "equipo": "A",
+      "bandoA": "Defensa",
+      "bandoB": "Ataque"
+    },
+    {
+      "slot": 4,
+      "modo": "HP",
+      "mapa": "Exposure",
+      "estado": "pick",
+      "equipo": "B",
+      "bandoA": "Ataque",
+      "bandoB": "Defensa"
+    },
+    {
+      "slot": null,
+      "modo": "HP",
+      "mapa": "Colossus",
+      "estado": "ban",
+      "equipo": "A",
+      "bandoA": null,
+      "bandoB": null
+    },
+    {
+      "slot": null,
+      "modo": "HP",
+      "mapa": "Den",
+      "estado": "ban",
+      "equipo": "B",
+      "bandoA": null,
+      "bandoB": null
+    }
+  ],
+  "resultados": [],
+  "scoreA": 0,
+  "scoreB": 0
+}
