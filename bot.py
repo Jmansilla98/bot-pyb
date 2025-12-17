@@ -15,13 +15,7 @@ PORT = int(os.getenv("PORT", "8080"))
 TOKEN = os.getenv("DISCORD_TOKEN")
 BASE_DIR = pathlib.Path(__file__).parent
 OVERLAY_DIR = BASE_DIR / "overlay"
-@routes.get("/")
-async def index(request):
-    return web.FileResponse(OVERLAY_DIR / "overlay.html")
 
-@routes.get("/overlay.html")
-async def overlay(request):
-    return web.FileResponse(OVERLAY_DIR / "overlay.html")
 
 # sirve JS / CSS / imágenes
 app.router.add_static("/static/", OVERLAY_DIR)
@@ -86,6 +80,10 @@ routes = web.RouteTableDef()
 @routes.get("/")
 async def index(request):
     return web.FileResponse("overlay.html")
+
+@routes.get("/overlay.html")
+async def overlay(request):
+    return web.FileResponse(OVERLAY_DIR / "overlay.html")
 
 @routes.get("/ws")
 async def websocket_handler(request):
