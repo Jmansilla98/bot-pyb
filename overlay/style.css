@@ -44,49 +44,43 @@ body {
   to   { transform: translateX(35%); }
 }
 
-/* =========================
-   HEADER
-========================= */
 .header {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  margin-bottom: 32px;
+  margin-bottom: 40px;
 }
 
 .team {
-  font-size: 40px;
-  font-weight: 700;
-  letter-spacing: 3px;
+  font-size: 44px;
+  font-weight: 800;
+  letter-spacing: 2px;
   text-transform: uppercase;
-  padding: 14px 28px;
-  background: rgba(0,0,0,0.7);
+  padding: 18px 32px;
+  background: #000;
 }
 
 .team.left {
-  border-left: 6px solid #00ff88;
+  border-left: 8px solid #00ff88;
 }
 
 .team.right {
   text-align: right;
-  border-right: 6px solid #00ff88;
-}
-
-.center {
-  text-align: center;
+  border-right: 8px solid #00ff88;
 }
 
 .mode {
-  font-size: 16px;
-  letter-spacing: 5px;
-  opacity: 0.6;
+  font-size: 14px;
+  letter-spacing: 6px;
+  opacity: 0.5;
 }
 
 .estado {
-  font-size: 26px;
+  font-size: 24px;
+  font-weight: 600;
   color: #00ff88;
-  margin-top: 2px;
 }
+
 
 /* =========================
    FINAL MAPS TOP
@@ -138,106 +132,97 @@ body {
 .map-row {
   display: flex;
   justify-content: center;
-  gap: 46px;
+  gap: 22px;
 }
 
-/* =========================
-   MAP CARD (DIAGONAL CDL)
-========================= */
+/* CARD BASE */
 .map-card {
   position: relative;
-  width: 360px;
-  height: 220px;
+  width: 300px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  height: 190px;
   background: #000;
   overflow: hidden;
-  transform: skew(-10deg);
-  box-shadow: 0 28px 60px rgba(0,0,0,0.85);
-  animation: cardIn 0.45s ease both;
+  transform: skew(-6deg);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.9);
 }
 
-.map-card.big {
-  width: 440px;
-  height: 270px;
-}
-
-.map-card * {
-  transform: skew(10deg);
-}
-
-/* IMAGE */
-.map-img {
+/* Imagen */
+.map-card .map-img {
   position: absolute;
   inset: 0;
   background-size: cover;
   background-position: center;
-  transition: transform 0.6s ease, filter 0.6s ease;
+  filter: brightness(0.8);
+  transform: skew(6deg) scale(1.15);
 }
 
-/* OVERLAY */
+/* Overlay */
 .map-overlay {
   position: absolute;
   inset: 0;
   background: linear-gradient(
     to top,
-    rgba(0,0,0,0.9),
-    rgba(0,0,0,0.25)
+    rgba(0,0,0,0.85),
+    rgba(0,0,0,0.15)
   );
 }
 
-/* INFO */
+/* Info */
 .map-info {
   position: absolute;
-  bottom: 16px;
-  left: 18px;
-  right: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  bottom: 14px;
+  left: 14px;
+  right: 14px;
+  transform: skew(6deg);
 }
 
 .map-name {
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: 1px;
+  font-size: 22px;
+  font-weight: 800;
 }
 
 .map-meta {
-  font-size: 13px;
-  letter-spacing: 1.5px;
+  font-size: 12px;
+  letter-spacing: 1px;
   opacity: 0.85;
 }
+
 
 /* =========================
    PICK
 ========================= */
 .map-card.pick {
   outline: 4px solid #00ff88;
+  transform: skew(-6deg) translateY(-6px);
 }
 
 .map-card.pick .map-img {
-  transform: scale(1.12);
+  filter: brightness(1);
 }
+
 
 /* =========================
    BAN (NEGRO CDL)
 ========================= */
 .map-card.ban .map-img {
-  filter: grayscale(1) brightness(0.12) blur(2px);
+  filter: grayscale(1) brightness(0.1) blur(1.5px);
 }
 
 .map-card.ban::after {
-  content: "";
+  content: "BANNED";
   position: absolute;
   inset: 0;
-  background:
-    repeating-linear-gradient(
-      135deg,
-      rgba(0,0,0,0.85),
-      rgba(0,0,0,0.85) 14px,
-      rgba(50,50,50,0.85) 14px,
-      rgba(50,50,50,0.85) 28px
-    );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: rgba(255,255,255,0.4);
+  background: rgba(0,0,0,0.7);
 }
+
 
 /* =========================
    FINAL CENTER
