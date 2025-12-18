@@ -19,19 +19,24 @@ body {
   vertical-align: middle;
 }
 
-#teamA, #teamB {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.team-logo {
+  height: 48px;
+  max-width: 48px;
+  object-fit: contain;
 }
 
 .team-logo.left {
-  margin-right: 6px;
+  margin-right: 12px;
 }
 
 .team-logo.right {
-  margin-left: 6px;
+  margin-left: 12px;
 }
+
+.team-name {
+  vertical-align: middle;
+}
+
 
 
 /* =========================
@@ -80,6 +85,25 @@ body {
   padding: 18px 32px;
   background: #000;
 }
+.team {
+  position: relative;
+  overflow: hidden;
+}
+
+.team::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 6px;
+  width: var(--timer-progress, 100%);
+  background: linear-gradient(90deg, #00ff88, #00ccff);
+  transition: width 0.1s linear;
+}
+.team.timed::after {
+  opacity: 1;
+}
+
 
 .team.left {
   border-left: 8px solid #00ff88;

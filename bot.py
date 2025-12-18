@@ -15,6 +15,7 @@ PORT = int(os.getenv("PORT", "8080"))
 TOKEN = os.getenv("DISCORD_TOKEN")
 BASE_DIR = pathlib.Path(__file__).parent
 OVERLAY_DIR = BASE_DIR / "overlay"
+TURN_TIME_SECONDS = int(os.getenv("TURN_TIME_SECONDS", "30"))
 
 
 
@@ -185,6 +186,7 @@ async def auto_decider(state):
         key = free_maps[0]
         state["maps"][key].update({"status": "picked", "team": "DECIDER", "slot": step["slot"]})
         state["step"] += 1
+        state["turn_started_at"] = asyncio.get_event_loop().time()
 
 # =========================
 # UI
@@ -223,6 +225,9 @@ class MapButton(discord.ui.Button):
             })
 
         state["step"] += 1
+        state["turn_started_at"] = asyncio.get_event_loop().time()
+        state["turn_duration"] = TURN_TIME_SECONDS
+
         await auto_decider(state)
         await ws_broadcast(str(self.channel_id))
 
@@ -258,9 +263,12 @@ class SideButton(discord.ui.Button):
                 break
 
         state["step"] += 1
+        state["turn_started_at"] = asyncio.get_event_loop().time()
+        state["turn_duration"] = TURN_TIME_SECONDS
+
         await auto_decider(state)
         await ws_broadcast(str(self.channel_id))
-
+        
         await interaction.message.edit(
             embed=build_embed(state),
             view=PickBanView(self.channel_id) if state["step"] < len(state["flow"]) else None
@@ -353,9 +361,14 @@ async def start(ctx, series: str, teamA: discord.Role, teamB: discord.Role):
         "teams": {
             "A": {"name": teamA.name, "logo": f"{teamA.name}.webp", "role_id": teamA.id},
             "B": {"name": teamB.name, "logo": f"{teamB.name}.webp", "role_id": teamB.id},
-        }
+        },
+        "turn_started_at": asyncio.get_event_loop().time(),
+        "turn_duration": TURN_TIME_SECONDS
     }
     overlay_url = f"https://bot-pyb-go66ea.fly.dev/overlay.html?match={ctx.channel.id}"
+    
+
+
     await ws_broadcast(str(ctx.channel.id))
     await ctx.send("Pick & Ban iniciado.")
     await ctx.send(

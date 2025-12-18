@@ -8,6 +8,9 @@ const modeEl = document.getElementById("mode");
 const mapsEl = document.getElementById("maps");
 const finalTop = document.getElementById("final-maps-top");
 const finalCenter = document.getElementById("final-center");
+let turnStart = null;
+let turnDuration = 30;
+let timerRAF = null;
 
 const wsProto = location.protocol === "https:" ? "wss" : "ws";
 const ws = new WebSocket(`${wsProto}://${location.host}/ws?match=${match}`);
@@ -35,6 +38,10 @@ function teamToLogo(name) {
 
 
 function render(state) {
+  if (state.turn_started_at) {
+  turnStart = state.turn_started_at;
+  turnDuration = state.turn_duration || 30;
+  }
   const teamAName = state.teams.A.name;
   const teamBName = state.teams.B.name;
 
@@ -58,6 +65,9 @@ function render(state) {
 
   if (step?.team === "A") teamAEl.classList.add("active");
   if (step?.team === "B") teamBEl.classList.add("active");
+  if (step?.team === "A") startTimer("A");
+  if (step?.team === "B") startTimer("B");
+
 
   modeEl.textContent = step?.mode || "";
   estadoEl.textContent = step
@@ -92,6 +102,33 @@ function render(state) {
       finalTop.appendChild(div);
     });
   }
+
+function startTimer(team) {
+  cancelAnimationFrame(timerRAF);
+
+  const el = team === "A" ? teamAEl : teamBEl;
+  const other = team === "A" ? teamBEl : teamAEl;
+
+  el.classList.add("timed");
+  other.classList.remove("timed");
+
+  function tick() {
+    if (!turnStart) return;
+
+    const now = performance.now() / 1000;
+    const elapsed = now - turnStart;
+    const progress = Math.min(elapsed / turnDuration, 1);
+
+    el.style.setProperty("--timer-progress", `${100 - progress * 100}%`);
+
+    if (progress < 1) {
+      timerRAF = requestAnimationFrame(tick);
+    }
+  }
+
+  tick();
+}
+
 
   /* =========================
      ACTIVE MODE MAPS
