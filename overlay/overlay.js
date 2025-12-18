@@ -39,13 +39,13 @@ function render(state) {
   const teamBName = state.teams.B.name;
 
   teamAEl.innerHTML = `
-    <img class="team-logo left" src="/static/logos/${teamToLogo(teamAName)}.png" />
+    <img class="team-logo left" src="/static/logos/${teamToLogo(teamAName.toLowerCase())}.webp" />
     <span>${teamAName}</span>
   `;
 
   teamBEl.innerHTML = `
     <span>${teamBName}</span>
-    <img class="team-logo right" src="/static/logos/${teamToLogo(teamBName)}.png" />
+    <img class="team-logo right" src="/static/logos/${teamToLogo(teamBName.toLowerCase())}.webp" />
   `;
 
 
