@@ -85,6 +85,7 @@ routes = web.RouteTableDef()
 async def overlay(request):
     return web.FileResponse(OVERLAY_DIR / "overlay.html")
 
+
 @routes.get("/ws")
 async def websocket_handler(request):
     ws = web.WebSocketResponse()
@@ -181,6 +182,7 @@ async def start(ctx, teamA: discord.Role, teamB: discord.Role):
 
     MATCHES[channel_id] = {
         "channel_id": channel_id,
+        "channel_name": ctx.channel.name,
         "flow": [],
         "step": 0,
         "maps": build_maps(),
@@ -188,29 +190,21 @@ async def start(ctx, teamA: discord.Role, teamB: discord.Role):
         "mode": None,
         "phase": "waiting_accept",
         "teams": {
-            "A": {"name": teamA.name, "role_id": teamA.id, "accepted": False},
-            "B": {"name": teamB.name, "role_id": teamB.id, "accepted": False},
+            "A": {"name": teamA.name, "role_id": teamA.id},
+            "B": {"name": teamB.name, "role_id": teamB.id},
         }
     }
 
     overlay_url = f"{APP_URL}/overlay.html?match={channel_id}"
 
-    view = discord.ui.View(timeout=None)
-    view.add_item(AcceptButton(channel_id, "A"))
-    view.add_item(AcceptButton(channel_id, "B"))
-
     await ctx.send(
         embed=discord.Embed(
             title="🎮 Pick & Bans",
-            description=f"{teamA.name} vs {teamB.name}\n\nEsperando aceptación",
+            description=f"{teamA.name} vs {teamB.name}",
             color=0x00ffcc
-        ),
-        view=view
+        )
     )
-
     await ctx.send(f"🎥 **Overlay OBS**:\n{overlay_url}")
-    await ws_broadcast(str(channel_id))
-
 # =========================
 # UI
 # =========================
@@ -279,10 +273,7 @@ class PickBanView(discord.ui.View):
             ):
                 self.add_item(ResultButton(channel_id, slot))
 
-            if not state.get("sheets_exported"):
-                send_match_to_sheets(state)
-                state["sheets_exported"] = True
-            return
+            
 
         step = state["flow"][state["step"]]
 
@@ -369,17 +360,32 @@ class ResultModal(discord.ui.Modal, title="Resultado del mapa"):
 
     async def on_submit(self, interaction):
         state = MATCHES[self.channel_id]
-        w = self.winner.value.upper()
-        if w not in ("A", "B"):
-            return await interaction.response.send_message("⛔ Ganador inválido", ephemeral=True)
-
         state["map_results"][self.slot] = {
-            "winner": w,
+            "winner": self.winner.value.upper(),
             "score": self.score.value
         }
 
         await ws_broadcast(str(self.channel_id))
         await interaction.response.send_message("✅ Resultado guardado", ephemeral=True)
+
+        # ¿Hay ganador de serie?
+        wins_a = sum(1 for r in state["map_results"].values() if r["winner"] == "A")
+        wins_b = sum(1 for r in state["map_results"].values() if r["winner"] == "B")
+        needed = 2 if state["mode"] == "BO3" else 3
+
+        if wins_a == needed or wins_b == needed:
+            winner = state["teams"]["A"]["name"] if wins_a > wins_b else state["teams"]["B"]["name"]
+
+            await interaction.channel.send(
+                embed=discord.Embed(
+                    title="🏆 RESULTADO FINAL",
+                    description=f"**{winner}** gana la serie {wins_a}-{wins_b}",
+                    color=0x00ff88
+                )
+            )
+
+            send_match_to_sheets(state)
+
 
 # =========================
 # EMBED
