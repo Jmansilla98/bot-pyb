@@ -65,20 +65,32 @@ function render(state) {
   finalTop.innerHTML = "";
   if (!finished) {
     picked.forEach(([key, m]) => {
-      const name = key.split("::")[1];
-      const img = mapToImage(name);
+    const name = key.split("::")[1];
+    const img = mapToImage(name);
+    const result = state.map_results?.[m.slot];
 
-      const div = document.createElement("div");
-      div.className = "final-map";
-      div.innerHTML = `
-        <div class="map-img" style="background-image:url('/static/maps/${img}.jpg')"></div>
-        <div class="label">
-          M${m.slot} · ${m.mode}<br>
-          Pick ${m.team}${m.side ? " · " + m.side : ""}
+    let scoreBadge = "";
+    if (result) {
+      scoreBadge = `
+        <div class="result-badge">
+          ${result.score}
         </div>
       `;
-      finalTop.appendChild(div);
-    });
+    }
+
+    const div = document.createElement("div");
+    div.className = "final-map big";
+    div.innerHTML = `
+      <div class="map-img" style="background-image:url('/static/maps/${img}.jpg')"></div>
+      ${scoreBadge}
+      <div class="label">
+        MAP ${m.slot} · ${m.mode}<br>
+        ${state.teams[m.team]?.name || m.team}
+        ${m.side ? " · " + m.side : ""}
+      </div>
+    `;
+    finalCenter.appendChild(div);
+  });
   }
 
   /* =========================
