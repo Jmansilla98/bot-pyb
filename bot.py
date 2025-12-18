@@ -355,7 +355,7 @@ async def start(ctx, series: str, teamA: discord.Role, teamB: discord.Role):
             "B": {"name": teamB.name, "logo": f"{teamB.name}.png", "role_id": teamB.id},
         }
     }
-    overlay_url = f"https://bot-pyb.fly.dev/overlay.html?match={ctx.channel.id}"
+    overlay_url = f"https://bot-pyb-go66ea.fly.dev/overlay.html?match={ctx.channel.id}"
     await ws_broadcast(str(ctx.channel.id))
     await ctx.send("Pick & Ban iniciado.")
     await ctx.send(
