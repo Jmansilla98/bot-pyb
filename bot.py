@@ -6,6 +6,7 @@ from aiohttp import web
 import aiohttp
 import pathlib
 import os
+from google_sheets import send_match_to_sheets
 
 # =========================
 # CONFIG
@@ -275,6 +276,10 @@ class PickBanView(discord.ui.View):
 
         # ✅ si ya terminó, no construyas botones
         if state["step"] >= len(state["flow"]):
+            if state.get("sheets_exported"):
+                send_match_to_sheets(state)
+            state["sheets_exported"] = True
+
             return
 
         step = state["flow"][state["step"]]
