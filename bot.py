@@ -16,6 +16,7 @@ PORT = int(os.getenv("PORT", "8080"))
 TOKEN = os.getenv("DISCORD_TOKEN")
 BASE_DIR = pathlib.Path(__file__).parent
 OVERLAY_DIR = BASE_DIR / "overlay"
+CLAIM_TIME_SECONDS = int(os.getenv("CLAIM_TIME_SECONDS", "5"))
 
 
 
@@ -267,6 +268,112 @@ class SideButton(discord.ui.Button):
             view=PickBanView(self.channel_id) if state["step"] < len(state["flow"]) else None
         )
 
+class ResultButton(discord.ui.Button):
+    def __init__(self, channel_id, slot):
+        self.channel_id = channel_id
+        self.slot = slot
+        super().__init__(
+            label=f"Resultado M{slot}",
+            style=discord.ButtonStyle.success
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        state = MATCHES[self.channel_id]
+
+        if not any(r.name.lower() == "arbitro" for r in interaction.user.roles):
+            await interaction.response.send_message(
+                "⛔ Solo el árbitro puede introducir resultados",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.send_modal(
+            ResultModal(self.channel_id, self.slot)
+        )
+
+class ResultModal(discord.ui.Modal, title="Resultado del mapa"):
+    winner = discord.ui.TextInput(
+        label="Ganador (A o B)",
+        placeholder="A o B",
+        max_length=1
+    )
+
+    score = discord.ui.TextInput(
+        label="Marcador",
+        placeholder="250-50 / 6-3 / 3-1",
+        max_length=10
+    )
+
+    def __init__(self, channel_id, slot):
+        super().__init__()
+        self.channel_id = channel_id
+        self.slot = slot
+
+    async def on_submit(self, interaction: discord.Interaction):
+        state = MATCHES[self.channel_id]
+
+        w = self.winner.value.upper()
+        if w not in ("A", "B"):
+            await interaction.response.send_message(
+                "⛔ Ganador inválido (A o B)",
+                ephemeral=True
+            )
+            return
+
+        state["map_results"][self.slot] = {
+            "winner": w,
+            "score": self.score.value
+        }
+
+        await ws_broadcast(str(self.channel_id))
+        await interaction.response.send_message(
+            f"✅ Resultado M{self.slot} guardado",
+            ephemeral=True
+        )
+
+        check_all_results_and_start_claim(state, self.channel_id)
+
+async def check_all_results_and_start_claim(state, channel_id):
+    picked_slots = [
+        m["slot"] for m in state["maps"].values()
+        if m["status"] == "picked"
+    ]
+
+    if not all(slot in state["map_results"] for slot in picked_slots):
+        return
+
+    if state["claim_open"]:
+        return
+
+    state["claim_open"] = True
+    state["claim_deadline"] = asyncio.get_event_loop().time() + CLAIM_TIME_SECONDS
+
+    await ws_broadcast(str(channel_id))
+
+    asyncio.create_task(claim_countdown(state, channel_id))
+
+
+async def claim_countdown(state, channel_id):
+    await asyncio.sleep(CLAIM_TIME_SECONDS)
+
+    state["claim_open"] = False
+    state["challonge_ready"] = True
+
+    wins_a = sum(
+    1 for r in state["map_results"].values()
+        if r["winner"] == "A"
+    )
+    wins_b = sum(
+        1 for r in state["map_results"].values()
+        if r["winner"] == "B"
+    )
+
+    scores_csv = f"{wins_a}-{wins_b}"
+
+    # ⬇️ aquí irá el envío a Challonge
+    # report_to_challonge(state)
+
+    print(f"[CHALLONGE] Resultados confirmados canal {channel_id}")
 
 
 class PickBanView(discord.ui.View):
@@ -276,6 +383,12 @@ class PickBanView(discord.ui.View):
 
         # ✅ si ya terminó, no construyas botones
         if state["step"] >= len(state["flow"]):
+            for slot in sorted(
+                m["slot"] for m in state["maps"].values()
+                if m["status"] == "picked"
+            ):
+                self.add_item(ResultButton(channel_id, slot))
+
             if state.get("sheets_exported"):
                 send_match_to_sheets(state)
             state["sheets_exported"] = True
@@ -351,13 +464,17 @@ async def start(ctx, series: str, teamA: discord.Role, teamB: discord.Role):
     flow = FLOW_BO5 if series == "BO5" else FLOW_BO3
 
     MATCHES[ctx.channel.id] = {
-        "series": series,
-        "flow": flow,
-        "step": 0,
-        "maps": build_maps(),
-        "teams": {
-            "A": {"name": teamA.name, "logo": f"{teamA.name}.png", "role_id": teamA.id},
-            "B": {"name": teamB.name, "logo": f"{teamB.name}.png", "role_id": teamB.id},
+    "series": series,
+    "flow": flow,
+    "step": 0,
+    "maps": build_maps(),
+    "map_results": {},          # slot -> {winner, score}
+    "claim_open": False,
+    "claim_deadline": None,
+    "challonge_ready": False,
+    "teams": {
+        "A": {"name": teamA.name, "logo": f"{teamA.name}.png", "role_id": teamA.id},
+        "B": {"name": teamB.name, "logo": f"{teamB.name}.png", "role_id": teamB.id},
         }
     }
     overlay_url = f"https://bot-pyb.fly.dev/overlay.html?match={ctx.channel.id}"

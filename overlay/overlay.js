@@ -38,6 +38,11 @@ function render(state) {
 
   const step = state.flow[state.step];
   const finished = state.step >= state.flow.length;
+  if (state.claim_open) {
+  estadoEl.textContent = "⏳ RECLAMACIONES ABIERTAS";
+} else if (state.challonge_ready) {
+  estadoEl.textContent = "✅ RESULTADOS CONFIRMADOS";
+}
 
   if (step?.team === "A") teamAEl.classList.add("active");
   if (step?.team === "B") teamBEl.classList.add("active");
