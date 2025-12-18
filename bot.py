@@ -296,9 +296,42 @@ class PickBanView(discord.ui.View):
             self.add_item(SideButton(channel_id, "JSOC"))
             self.add_item(SideButton(channel_id, "HERMANDAD"))
 
+def describe_step(state):
+    if state["step"] >= len(state["flow"]):
+        return "✅ **PICK & BAN FINALIZADO**"
+
+    step = state["flow"][state["step"]]
+
+    action_map = {
+        "ban": "BANEAR MAPA",
+        "pick_map": "PICK DE MAPA",
+        "pick_side": "ELEGIR LADO",
+        "auto_decider": "DECIDER AUTOMÁTICO"
+    }
+
+    action = action_map.get(step["type"], step["type"].upper())
+    mode = step.get("mode", "")
+    team = step.get("team")
+
+    if team == "A":
+        turn = f"TEAM {state['teams']['A']['name']}"
+    elif team == "B":
+        turn = f"TEAM {state['teams']['B']['name']}"
+    else:
+        turn = "SISTEMA / ÁRBITRO"
+
+    return (
+        f"**PASO {state['step'] + 1} / {len(state['flow'])}**\n"
+        f"🎯 **ACCIÓN:** {action}\n"
+        f"🕹️ **MODO:** {mode}\n"
+        f"👤 **TURNO:** {turn}"
+    )
+
 
 def build_embed(state):
-    embed = discord.Embed(title=f"PICK & BAN — {state['series']}", color=0x2ecc71)
+    embed = discord.Embed(title=f"PICK & BAN — {state.get('mode', state.get('series', ''))}",
+        description=describe_step(state),
+        color=0x2ecc71)
 
     for mode in ["HP", "SnD", "OVR"]:
         lines = []
