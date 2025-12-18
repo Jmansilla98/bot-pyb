@@ -28,9 +28,26 @@ function mapToImage(name) {
     .replace(/[^a-z0-9]/g, "");
 }
 
+function teamToLogo(name) {
+  return name
+    .replace(/\s+/g, "_"); // para espacios en URL
+}
+
+
 function render(state) {
-  teamAEl.textContent = state.teams.A.name;
-  teamBEl.textContent = state.teams.B.name;
+  const teamAName = state.teams.A.name;
+  const teamBName = state.teams.B.name;
+
+  teamAEl.innerHTML = `
+    <img class="team-logo left" src="/static/logos/${teamToLogo(teamAName)}.png" />
+    <span>${teamAName}</span>
+  `;
+
+  teamBEl.innerHTML = `
+    <span>${teamBName}</span>
+    <img class="team-logo right" src="/static/logos/${teamToLogo(teamBName)}.png" />
+  `;
+
 
   // RESET GLOW
   teamAEl.classList.remove("active");

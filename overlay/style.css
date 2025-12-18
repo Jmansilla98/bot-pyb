@@ -12,6 +12,27 @@ body {
   overflow: hidden;
   color: #fff;
 }
+.team-logo {
+  height: 42px;
+  width: auto;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+#teamA, #teamB {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.team-logo.left {
+  margin-right: 6px;
+}
+
+.team-logo.right {
+  margin-left: 6px;
+}
+
 
 /* =========================
    OVERLAY BASE + MOTION BG

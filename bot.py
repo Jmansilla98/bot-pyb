@@ -351,8 +351,8 @@ async def start(ctx, series: str, teamA: discord.Role, teamB: discord.Role):
         "step": 0,
         "maps": build_maps(),
         "teams": {
-            "A": {"name": teamA.name, "logo": f"{teamA.name}.png", "role_id": teamA.id},
-            "B": {"name": teamB.name, "logo": f"{teamB.name}.png", "role_id": teamB.id},
+            "A": {"name": teamA.name, "logo": f"{teamA.name}.webp", "role_id": teamA.id},
+            "B": {"name": teamB.name, "logo": f"{teamB.name}.webp", "role_id": teamB.id},
         }
     }
     overlay_url = f"https://bot-pyb-go66ea.fly.dev/overlay.html?match={ctx.channel.id}"
