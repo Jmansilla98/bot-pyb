@@ -183,8 +183,8 @@ async def start(ctx, teamA: discord.Role, teamB: discord.Role):
     overlay_url = f"{APP_URL}/overlay.html?match={channel_id}"
 
     view = discord.ui.View(timeout=None)
-    view.add_item(AcceptButton(channel_id, teamA.name))
-    view.add_item(AcceptButton(channel_id, teamB.name))
+    view.add_item(AcceptButton(channel_id, "A"))
+    view.add_item(AcceptButton(channel_id, "B"))
 
     await ctx.send(
         embed=discord.Embed(
