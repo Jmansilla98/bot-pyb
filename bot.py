@@ -11,7 +11,7 @@ from google_sheets import send_match_to_sheets
 # =========================
 # CONFIG
 # =========================
-APP_URL = os.getenv("APP_URL")
+APP_URL = os.getenv("APP_URL", "").rstrip("/")
 PORT = int(os.getenv("PORT", "8080"))
 TOKEN = os.getenv("DISCORD_TOKEN")
 BASE_DIR = pathlib.Path(__file__).parent
@@ -127,25 +127,13 @@ async def start_web():
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
 
-async def keep_alive():
-    if not APP_URL:
-        return
-    async with aiohttp.ClientSession() as session:
-        while True:
-            try:
-                await session.get(APP_URL)
-            except:
-                pass
-            await asyncio.sleep(300)
-
 @bot.event
 async def on_ready():
     asyncio.create_task(start_web())
-    asyncio.create_task(keep_alive())
     print("🤖 Bot listo")
 
 # =========================
-# CORE HELPERS
+# HELPERS
 # =========================
 def build_maps():
     maps = {}
@@ -156,6 +144,33 @@ def build_maps():
     for m in OVR_MAPS:
         maps[f"OVR::{m}"] = {"mode": "OVR", "status": "free", "team": None, "slot": None, "side": None}
     return maps
+
+async def auto_decider(state):
+    while state["step"] < len(state["flow"]):
+        step = state["flow"][state["step"]]
+        if step["type"] != "auto_decider":
+            return
+        free_maps = [
+            k for k, m in state["maps"].items()
+            if m["mode"] == step["mode"] and m["status"] == "free"
+        ]
+        if len(free_maps) != 1:
+            return
+        key = free_maps[0]
+        state["maps"][key].update({
+            "status": "picked",
+            "team": "DECIDER",
+            "slot": step["slot"]
+        })
+        state["step"] += 1
+
+def user_can_interact(interaction, state, step):
+    if any(r.name == ARBITRO_ROLE_NAME for r in interaction.user.roles):
+        return True
+    if not step.get("team"):
+        return False
+    role_id = state["teams"][step["team"]]["role_id"]
+    return any(r.id == role_id for r in interaction.user.roles)
 
 # =========================
 # START COMMAND
@@ -170,8 +185,6 @@ async def start(ctx, teamA: discord.Role, teamB: discord.Role):
         "step": 0,
         "maps": build_maps(),
         "map_results": {},
-        "claim_open": False,
-        "challonge_ready": False,
         "mode": None,
         "phase": "waiting_accept",
         "teams": {
@@ -189,18 +202,17 @@ async def start(ctx, teamA: discord.Role, teamB: discord.Role):
     await ctx.send(
         embed=discord.Embed(
             title="🎮 Pick & Bans",
-            description=f"{teamA.name} vs {teamB.name}\n\nEsperando aceptación de ambos equipos",
+            description=f"{teamA.name} vs {teamB.name}\n\nEsperando aceptación",
             color=0x00ffcc
         ),
         view=view
     )
 
     await ctx.send(f"🎥 **Overlay OBS**:\n{overlay_url}")
-
     await ws_broadcast(str(channel_id))
 
 # =========================
-# UI BUTTONS & FLOW
+# UI
 # =========================
 class AcceptButton(discord.ui.Button):
     def __init__(self, channel_id, team):
@@ -225,7 +237,7 @@ async def show_bo_selector(channel, channel_id):
     view = discord.ui.View(timeout=None)
     view.add_item(ModeButton(channel_id, "BO3"))
     view.add_item(ModeButton(channel_id, "BO5"))
-    await channel.send("⚖️ Árbitro: selecciona el formato", view=view)
+    await channel.send("⚖️ Árbitro: selecciona formato", view=view)
 
 class ModeButton(discord.ui.Button):
     def __init__(self, channel_id, mode):
@@ -236,7 +248,6 @@ class ModeButton(discord.ui.Button):
     async def callback(self, interaction):
         if not any(r.name == ARBITRO_ROLE_NAME for r in interaction.user.roles):
             return await interaction.response.send_message("⛔ Solo árbitro", ephemeral=True)
-
         await interaction.response.send_message(f"🎮 {self.mode} seleccionado", ephemeral=True)
         await start_pickban_flow(self.channel_id, self.mode)
 
@@ -251,30 +262,21 @@ async def start_pickban_flow(channel_id, mode):
         m.update({"status": "free", "team": None, "side": None, "slot": None})
 
     channel = bot.get_channel(channel_id)
-    await channel.send(
-        embed=build_embed(state),
-        view=PickBanView(channel_id)
-    )
+    await channel.send(embed=build_embed(state), view=PickBanView(channel_id))
     await ws_broadcast(str(channel_id))
 
 # =========================
 # PICK & BAN VIEW
 # =========================
-def user_can_interact(interaction, state, step):
-    if any(r.name == ARBITRO_ROLE_NAME for r in interaction.user.roles):
-        return True
-    if not step.get("team"):
-        return False
-    role_id = state["teams"][step["team"]]["role_id"]
-    return any(r.id == role_id for r in interaction.user.roles)
-
 class PickBanView(discord.ui.View):
     def __init__(self, channel_id):
         super().__init__(timeout=None)
         state = MATCHES[channel_id]
 
         if state["step"] >= len(state["flow"]):
-            for slot in sorted(m["slot"] for m in state["maps"].values() if m["status"] == "picked"):
+            for slot in sorted(
+                m["slot"] for m in state["maps"].values() if m["status"] == "picked"
+            ):
                 self.add_item(ResultButton(channel_id, slot))
 
             if not state.get("sheets_exported"):
@@ -292,9 +294,6 @@ class PickBanView(discord.ui.View):
             self.add_item(SideButton(channel_id, "ATK"))
             self.add_item(SideButton(channel_id, "DEF"))
 
-# =========================
-# MAP / SIDE / RESULT BUTTONS
-# =========================
 class MapButton(discord.ui.Button):
     def __init__(self, channel_id, map_key):
         super().__init__(label=map_key.split("::")[1], style=discord.ButtonStyle.secondary)
@@ -313,9 +312,14 @@ class MapButton(discord.ui.Button):
         if step["type"] == "ban":
             state["maps"][self.map_key].update({"status": "banned", "team": step["team"]})
         elif step["type"] == "pick_map":
-            state["maps"][self.map_key].update({"status": "picked", "team": step["team"], "slot": step["slot"]})
+            state["maps"][self.map_key].update({
+                "status": "picked",
+                "team": step["team"],
+                "slot": step["slot"]
+            })
 
         state["step"] += 1
+        await auto_decider(state)
         await ws_broadcast(str(self.channel_id))
         await interaction.message.edit(embed=build_embed(state), view=PickBanView(self.channel_id))
 
@@ -339,6 +343,7 @@ class SideButton(discord.ui.Button):
                 m["side"] = self.side
 
         state["step"] += 1
+        await auto_decider(state)
         await ws_broadcast(str(self.channel_id))
         await interaction.message.edit(embed=build_embed(state), view=PickBanView(self.channel_id))
 
@@ -368,7 +373,11 @@ class ResultModal(discord.ui.Modal, title="Resultado del mapa"):
         if w not in ("A", "B"):
             return await interaction.response.send_message("⛔ Ganador inválido", ephemeral=True)
 
-        state["map_results"][self.slot] = {"winner": w, "score": self.score.value}
+        state["map_results"][self.slot] = {
+            "winner": w,
+            "score": self.score.value
+        }
+
         await ws_broadcast(str(self.channel_id))
         await interaction.response.send_message("✅ Resultado guardado", ephemeral=True)
 
