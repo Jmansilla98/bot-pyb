@@ -56,16 +56,6 @@ FLOW_BO3 = [
     {"mode": "OVR", "type": "pick_side", "team": "A", "slot": 3},
 ]
 
-FLOW_BO5 = [
-    *FLOW_BO3[:4],
-    {"mode": "HP", "type": "pick_map", "team": "B", "slot": 4},
-    {"mode": "HP", "type": "pick_side", "team": "A", "slot": 4},
-    *FLOW_BO3[4:8],
-    {"mode": "SnD", "type": "pick_map", "team": "A", "slot": 5},
-    {"mode": "SnD", "type": "pick_side", "team": "B", "slot": 5},
-    *FLOW_BO3[8:]
-]
-
 # =========================
 # WEB + WS
 # =========================
@@ -81,9 +71,10 @@ async def overlay(request):
 async def websocket_handler(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
-    match_id = request.query.get("match")
 
+    match_id = request.query.get("match")
     WS_CLIENTS.setdefault(match_id, set()).add(ws)
+
     if int(match_id) in MATCHES:
         await ws_broadcast(match_id)
 
@@ -91,7 +82,7 @@ async def websocket_handler(request):
         async for _ in ws:
             pass
     finally:
-        WS_CLIENTS[match_id].discard(ws)
+        WS_CLIENTS.get(match_id, set()).discard(ws)
 
     return ws
 
@@ -123,116 +114,111 @@ async def on_ready():
 # =========================
 # HELPERS
 # =========================
-def build_maps():
-    maps = {}
-    for m in HP_MAPS:
-        maps[f"HP::{m}"] = {"mode": "HP", "status": "free", "team": None, "slot": None, "side": None}
-    for m in SND_MAPS:
-        maps[f"SnD::{m}"] = {"mode": "SnD", "status": "free", "team": None, "slot": None, "side": None}
-    for m in OVR_MAPS:
-        maps[f"OVR::{m}"] = {"mode": "OVR", "status": "free", "team": None, "slot": None, "side": None}
-    return maps
-
 def is_arbitro(member):
     return any(r.name.lower() == ARBITRO_ROLE_NAME.lower() for r in member.roles)
 
-def required_wins(mode):
-    return 2 if mode == "BO3" else 3
+def build_maps():
+    maps = {}
+    for m in HP_MAPS:
+        maps[f"HP::{m}"] = {"mode": "HP", "status": "free"}
+    for m in SND_MAPS:
+        maps[f"SnD::{m}"] = {"mode": "SnD", "status": "free"}
+    for m in OVR_MAPS:
+        maps[f"OVR::{m}"] = {"mode": "OVR", "status": "free"}
+    return maps
 
-def compute_wins(state):
-    a = b = 0
-    for r in state["map_results"].values():
-        if r["winner"] == "A":
-            a += 1
-        elif r["winner"] == "B":
-            b += 1
-    return a, b
+# =========================
+# EVENTO – UI
+# =========================
+class CreateEventButton(discord.ui.Button):
+    def __init__(self, channel_id):
+        super().__init__(label="📅 Crear evento del partido", style=discord.ButtonStyle.primary)
+        self.channel_id = channel_id
 
-async def check_autowin(channel_id, state):
-    if state.get("series_finished"):
-        return
+    async def callback(self, interaction: discord.Interaction):
+        if not is_arbitro(interaction.user):
+            return await interaction.response.send_message(
+                "⛔ Solo el árbitro puede crear el evento",
+                ephemeral=True
+            )
+        await interaction.response.send_modal(CreateEventModal(self.channel_id))
 
-    wins_a, wins_b = compute_wins(state)
-    need = required_wins(state["mode"])
+class CreateEventModal(discord.ui.Modal, title="Crear evento del partido"):
+    date = discord.ui.TextInput(label="Fecha (YYYY-MM-DD)", placeholder="2025-02-01")
+    time = discord.ui.TextInput(label="Hora (HH:MM)", placeholder="21:30")
+    duration = discord.ui.TextInput(label="Duración (min)", default="90")
 
-    if wins_a >= need or wins_b >= need:
-        winner = "A" if wins_a > wins_b else "B"
-        state["series_finished"] = True
-        state["series_winner"] = winner
+    def __init__(self, channel_id):
+        super().__init__()
+        self.channel_id = channel_id
 
-        await ws_broadcast(str(channel_id))
+    async def on_submit(self, interaction: discord.Interaction):
+        state = MATCHES[self.channel_id]
+        try:
+            start = datetime.fromisoformat(
+                f"{self.date.value} {self.time.value}"
+            ).replace(tzinfo=timezone.utc)
 
-        channel = bot.get_channel(channel_id)
-        if channel:
-            await channel.send(
-                f"🏆 **SERIE FINALIZADA** — Gana **{state['teams'][winner]['name']}** "
-                f"({wins_a}-{wins_b})"
+            end = start + timedelta(minutes=int(self.duration.value))
+        except:
+            return await interaction.response.send_message(
+                "❌ Fecha u hora incorrecta",
+                ephemeral=True
             )
 
+        event = await interaction.guild.create_scheduled_event(
+            name=f"{state['teams']['A']['name']} vs {state['teams']['B']['name']}",
+            start_time=start,
+            end_time=end,
+            entity_type=discord.EntityType.external,
+            location=f"Canal #{interaction.channel.name}",
+            privacy_level=discord.PrivacyLevel.guild_only
+        )
+
+        await interaction.response.send_message(
+            f"✅ Evento creado: **{event.name}**",
+            ephemeral=True
+        )
+
+# =========================
+# START
+# =========================
 @bot.command()
 async def start(ctx, teamA: discord.Role, teamB: discord.Role):
     MATCHES[ctx.channel.id] = {
-        "channel_id": ctx.channel.id,
-        "flow": [],
-        "step": 0,
-        "maps": build_maps(),
-        "map_results": {},
-        "mode": None,
-        "series_finished": False,
-        "series_winner": None,
-        "series_score": {"A": 0, "B": 0},
-        "turn_started_at": time.time(),
-        "turn_duration": TURN_TIME_SECONDS,
         "teams": {
-            "A": {"name": teamA.name, "role_id": teamA.id, "ready": False},
-            "B": {"name": teamB.name, "role_id": teamB.id, "ready": False},
-        }
+            "A": {"name": teamA.name},
+            "B": {"name": teamB.name},
+        },
+        "maps": build_maps(),
+        "flow": FLOW_BO3,
+        "step": 0,
     }
 
-    state = MATCHES[ctx.channel.id]
-
-    # 1️⃣ EMBED DE ORGANIZACIÓN (ESTO ES LO QUE NO SE ENVIABA)
-    await send_match_planning_embed(ctx.channel, state)
-
-    # 2️⃣ OVERLAY
-    overlay_url = (
-        f"{APP_URL}/overlay.html?match={ctx.channel.id}"
-        if APP_URL else
-        f"/overlay.html?match={ctx.channel.id}"
+    embed = discord.Embed(
+        title="📅 Organización del partido",
+        description=(
+            "Usad este mensaje para **acordar la hora**.\n\n"
+            "👉 El árbitro debe crear el **evento oficial** antes de empezar."
+        ),
+        color=0x3498db
     )
 
+    embed.add_field(
+        name="Equipos",
+        value=f"🟢 {teamA.name} vs 🔵 {teamB.name}",
+        inline=False
+    )
+
+    view = discord.ui.View(timeout=None)
+    view.add_item(CreateEventButton(ctx.channel.id))
+
+    await ctx.send(embed=embed, view=view)
+
+    overlay_url = f"{APP_URL}/overlay.html?match={ctx.channel.id}"
     await ctx.send(f"🎥 **Overlay OBS:**\n{overlay_url}")
 
     await ws_broadcast(str(ctx.channel.id))
-
-
-# =========================
-# RESULTS
-# =========================
-class ResultModal(discord.ui.Modal, title="Resultado del mapa"):
-    winner = discord.ui.TextInput(label="Ganador (A o B)", max_length=1)
-    score = discord.ui.TextInput(label="Marcador", placeholder="250-50 / 6-3")
-
-    def __init__(self, channel_id, slot):
-        super().__init__()
-        self.channel_id = channel_id
-        self.slot = slot
-
-    async def on_submit(self, interaction):
-        state = MATCHES[self.channel_id]
-        w = self.winner.value.upper()
-
-        if w not in ("A", "B"):
-            return await interaction.response.send_message("⛔ Ganador inválido", ephemeral=True)
-
-        state["map_results"][str(self.slot)] = {
-            "winner": w,
-            "score": self.score.value
-        }
-
-        await ws_broadcast(str(self.channel_id))
-        await interaction.response.send_message("✅ Resultado guardado", ephemeral=True)
-        await check_autowin(self.channel_id, state)
 
 # =========================
 # RUN
