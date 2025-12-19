@@ -2,27 +2,22 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Panel de Árbitro</title>
-  <link rel="stylesheet" href="/static/arbitro.css">
+  <title>Panel del Árbitro</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
+<body class="arbitro-body">
 
-<div class="container">
-  <h1>🧑‍⚖️ Panel de Árbitro</h1>
+  <header class="arbitro-header">
+    <h1>🧑‍⚖️ Panel del Árbitro</h1>
+    <span id="last-update">Actualizando…</span>
+  </header>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Partido</th>
-        <th>Formato</th>
-        <th>Estado</th>
-        <th>Resultados</th>
-      </tr>
-    </thead>
-    <tbody id="matches"></tbody>
-  </table>
-</div>
+  <main class="arbitro-container">
+    <div id="matches" class="matches-grid">
+      <!-- partidos -->
+    </div>
+  </main>
 
-<script src="/static/arbitro.js"></script>
+  <script src="/static/arbitro.js"></script>
 </body>
 </html>

@@ -1,29 +1,52 @@
+const matchesEl = document.getElementById("matches");
+const lastUpdateEl = document.getElementById("last-update");
+
 async function loadMatches() {
-  const res = await fetch("/api/matches");
-  const matches = await res.json();
+  try {
+    const res = await fetch("/api/matches");
+    const matches = await res.json();
 
-  const tbody = document.getElementById("matches");
-  tbody.innerHTML = "";
+    matchesEl.innerHTML = "";
 
-  matches.forEach(m => {
-    const tr = document.createElement("tr");
+    matches.forEach(m => {
+      const card = document.createElement("div");
+      card.className = "match-card";
 
-    const results = Object.entries(m.results || {})
-      .sort((a,b) => a[0] - b[0])
-      .map(([slot, r]) => `M${slot}: ${r.score} (${r.winner})`)
-      .join("<br>") || "—";
+      const statusClass =
+        m.status === "En curso" ? "status-live" :
+        m.status === "Finalizado" ? "status-finished" :
+        "status-pending";
 
-    tr.innerHTML = `
-      <td>${m.teams}</td>
-      <td>${m.mode || "—"}</td>
-      <td class="status ${m.status.replace(" ", "").toLowerCase()}">${m.status}</td>
-      <td>${results}</td>
-    `;
+      const results = Object.keys(m.results || {}).length
+        ? Object.entries(m.results).map(([k, r]) =>
+            `<div class="map-result">M${k}: <b>${r.winner}</b> (${r.score})</div>`
+          ).join("")
+        : "<div class='map-result empty'>Sin resultados</div>";
 
-    tbody.appendChild(tr);
-  });
+      card.innerHTML = `
+        <div class="match-header">
+          <div class="teams">${m.teams}</div>
+          <div class="mode">${m.mode || "—"}</div>
+        </div>
+
+        <div class="status ${statusClass}">
+          ${m.status}
+        </div>
+
+        <div class="results">
+          ${results}
+        </div>
+      `;
+
+      matchesEl.appendChild(card);
+    });
+
+    lastUpdateEl.textContent = "Última actualización: " + new Date().toLocaleTimeString();
+  } catch (e) {
+    lastUpdateEl.textContent = "Error al cargar partidos";
+  }
 }
 
 // refresco automático
-setInterval(loadMatches, 2000);
 loadMatches();
+setInterval(loadMatches, 3000);

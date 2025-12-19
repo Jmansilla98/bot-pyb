@@ -194,6 +194,131 @@ html, body {
   letter-spacing: 2px;
 }
 
+/* =======================
+   PANEL ÁRBITRO
+======================= */
+
+.arbitro-body {
+  margin: 0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: #0b0f1a;
+  color: #ffffff;
+}
+
+.arbitro-header {
+  padding: 20px;
+  background: linear-gradient(90deg, #0aa3ff, #00ffc6);
+  color: #000;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.arbitro-header h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.arbitro-container {
+  padding: 20px;
+}
+
+.matches-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.match-card {
+  background: #12172a;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.match-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.match-header .teams {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.match-header .mode {
+  background: #0aa3ff;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #000;
+}
+
+.status {
+  margin-top: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.status-live {
+  background: #00ffc6;
+  color: #000;
+}
+
+.status-finished {
+  background: #7c7cff;
+}
+
+.status-pending {
+  background: #ffcc00;
+  color: #000;
+}
+
+.results {
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.map-result {
+  padding: 4px 0;
+}
+
+.map-result.empty {
+  opacity: 0.6;
+}
+
+/* =======================
+   WINNER OVERLAY
+======================= */
+
+.final-center {
+  font-size: 42px;
+  font-weight: 800;
+  text-align: center;
+  padding: 30px;
+  color: #fff;
+  background: linear-gradient(135deg, #0aa3ff, #00ffc6);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  animation: popIn 0.6s ease-out;
+}
+
+@keyframes popIn {
+  from {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 /* =========================
    ANIMATIONS
 ========================= */
