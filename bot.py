@@ -111,6 +111,49 @@ async def on_ready():
     asyncio.create_task(start_web())
     print("🤖 Bot listo")
 
+async def send_ready_buttons(channel: discord.TextChannel, state: dict):
+    view = discord.ui.View(timeout=None)
+    view.add_item(ReadyButton(state["channel_id"], "A"))
+    view.add_item(ReadyButton(state["channel_id"], "B"))
+
+    await channel.send(
+        embed=discord.Embed(
+            title="🎮 Preparados para Pick & Ban",
+            description=(
+                "Cada equipo debe confirmar que está listo.\n\n"
+                "Cuando **ambos equipos** estén listos, el **árbitro** podrá elegir "
+                "si la serie es **BO3 o BO5**."
+            ),
+            color=0x00ffcc
+        ),
+        view=view
+    )
+
+
+class ReadyButton(discord.ui.Button):
+    def __init__(self, channel_id: int, team: str):
+        super().__init__(
+            label=f"✅ TEAM {team} LISTO",
+            style=discord.ButtonStyle.success
+        )
+        self.channel_id = channel_id
+        self.team = team
+
+    async def callback(self, interaction: discord.Interaction):
+        state = MATCHES[self.channel_id]
+
+        if not any(r.id == state["teams"][self.team]["role_id"] for r in interaction.user.roles):
+            return await interaction.response.send_message(
+                "⛔ No perteneces a este equipo",
+                ephemeral=True
+            )
+
+        state["teams"][self.team]["ready"] = True
+        await interaction.response.send_message("✅ Equipo confirmado", ephemeral=True)
+
+        if all(t["ready"] for t in state["teams"].values()):
+            await show_bo_selector(interaction.channel, self.channel_id)
+
 # =========================
 # HELPERS
 # =========================
@@ -179,6 +222,9 @@ class CreateEventModal(discord.ui.Modal, title="Crear evento del partido"):
             f"✅ Evento creado: **{event.name}**",
             ephemeral=True
         )
+        # 👉 Ahora sí, mostrar botones de LISTO
+        await send_ready_buttons(interaction.channel, state)
+
 
 # =========================
 # START
