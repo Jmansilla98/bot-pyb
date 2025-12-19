@@ -150,26 +150,26 @@ async def api_matches(request):
     return web.json_response(data)
 
 
-async def send_match_planning_embed(channel, state):
+async def send_match_planning_embed(channel: discord.TextChannel, state: dict):
     embed = discord.Embed(
-        title="📅 Organización del Partido",
+        title="📅 Organización del partido",
         description=(
-            "Este mensaje sirve para **acordar la hora del partido**.\n\n"
-            "🔹 Un/a **árbitro/a** debe crear el evento cuando los equipos lo acuerden.\n"
-            "🔹 El evento se creará en este canal y notificará a ambos equipos.\n\n"
-            "Cuando el evento esté creado, el flujo de **Pick & Ban** continuará."
+            "Usad este mensaje para **acordar la hora del partido**.\n\n"
+            "👉 Cuando tengáis una hora clara, el **árbitro** puede crear el evento "
+            "oficial del partido desde aquí.\n\n"
+            "⚠️ El Pick & Ban **NO comenzará** hasta que esto esté claro."
         ),
         color=0x3498db
     )
 
     embed.add_field(
         name="Equipos",
-        value=f"🅰️ **{state['teams']['A']['name']}**\n🅱️ **{state['teams']['B']['name']}**",
+        value=f"🟢 **{state['teams']['A']['name']}** vs 🔵 **{state['teams']['B']['name']}**",
         inline=False
     )
 
     view = discord.ui.View(timeout=None)
-    view.add_item(CreateEventButton(state["channel_id"]))
+    view.add_item(CreateEventButton(channel.id))
 
     await channel.send(embed=embed, view=view)
 
@@ -463,7 +463,7 @@ async def start(ctx, teamA: discord.Role, teamB: discord.Role):
     overlay_url = f"{APP_URL}/overlay.html?match={ctx.channel.id}" if APP_URL else f"/overlay.html?match={ctx.channel.id}"
 
     
-    await send_match_planning_embed(ctx.channel.id, MATCHES[ctx.channel.id])
+    await send_match_planning_embed(ctx.channel, MATCHES[ctx.channel.id])
 
     
 
