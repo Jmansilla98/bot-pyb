@@ -443,6 +443,7 @@ async def send_ready_buttons(channel, state):
 @bot.command()
 async def start(ctx, teamA: discord.Role, teamB: discord.Role):
     MATCHES[ctx.channel.id] = {
+        "channel_id": ctx.channel.id,
         "flow": [],
         "step": 0,
         "maps": build_maps(),
