@@ -106,6 +106,19 @@ async def websocket_handler(request):
 
 app.add_routes(routes)
 
+async def auto_decider(state):
+    while state["step"] < len(state["flow"]):
+        step = state["flow"][state["step"]]
+        if step["type"] != "auto_decider":
+            return
+        free_maps = [k for k, m in state["maps"].items() if m["mode"] == step["mode"] and m["status"] == "free"]
+        if len(free_maps) != 1:
+            return
+        key = free_maps[0]
+        state["maps"][key].update({"status": "picked", "team": "DECIDER", "slot": step["slot"]})
+        state["step"] += 1
+        state["turn_started_at"] = asyncio.get_event_loop().time()
+
 async def ws_broadcast(match_id):
     state = MATCHES.get(int(match_id))
     if not state:
@@ -291,7 +304,7 @@ class MapButton(discord.ui.Button):
 
         state["step"] += 1
         state["turn_started_at"] = asyncio.get_event_loop().time()
-
+        await auto_decider(state)
         await ws_broadcast(str(self.channel_id))
         await interaction.message.edit(embed=build_embed(state), view=PickBanView(self.channel_id))
 
@@ -316,7 +329,7 @@ class SideButton(discord.ui.Button):
 
         state["step"] += 1
         state["turn_started_at"] = asyncio.get_event_loop().time()
-
+        await auto_decider(state)
         await ws_broadcast(str(self.channel_id))
         await interaction.message.edit(embed=build_embed(state), view=PickBanView(self.channel_id))
 
@@ -380,9 +393,25 @@ def build_embed(state):
 def describe_step(state):
     if state["step"] >= len(state["flow"]):
         return "✅ **PICK & BAN FINALIZADO**"
+
     step = state["flow"][state["step"]]
-    team = state["teams"].get(step.get("team"), {}).get("name", "Sistema")
-    return f"🎯 **Acción:** {step['type'].upper()} · **Turno:** {team}"
+    action = {
+        "ban": "BANEAR MAPA",
+        "pick_map": "PICK DE MAPA",
+        "pick_side": "ELEGIR LADO",
+        "auto_decider": "DECIDER AUTOMÁTICO"
+    }.get(step["type"], step["type"])
+
+    team = step.get("team")
+    if team == "A":
+        who = state["teams"]["A"]["name"]
+    elif team == "B":
+        who = state["teams"]["B"]["name"]
+    else:
+        who = "SISTEMA"
+
+    return f"**PASO {state['step'] + 1}/{len(state['flow'])}**\n🎯 {action}\n👤 Turno: **{who}**"
+
 
 # =========================
 # RUN
