@@ -169,9 +169,6 @@ async def check_autowin(channel_id, state):
                 f"({wins_a}-{wins_b})"
             )
 
-# =========================
-# START
-# =========================
 @bot.command()
 async def start(ctx, teamA: discord.Role, teamB: discord.Role):
     MATCHES[ctx.channel.id] = {
@@ -183,6 +180,7 @@ async def start(ctx, teamA: discord.Role, teamB: discord.Role):
         "mode": None,
         "series_finished": False,
         "series_winner": None,
+        "series_score": {"A": 0, "B": 0},
         "turn_started_at": time.time(),
         "turn_duration": TURN_TIME_SECONDS,
         "teams": {
@@ -191,10 +189,22 @@ async def start(ctx, teamA: discord.Role, teamB: discord.Role):
         }
     }
 
-    overlay_url = f"{APP_URL}/overlay.html?match={ctx.channel.id}"
+    state = MATCHES[ctx.channel.id]
+
+    # 1️⃣ EMBED DE ORGANIZACIÓN (ESTO ES LO QUE NO SE ENVIABA)
+    await send_match_planning_embed(ctx.channel, state)
+
+    # 2️⃣ OVERLAY
+    overlay_url = (
+        f"{APP_URL}/overlay.html?match={ctx.channel.id}"
+        if APP_URL else
+        f"/overlay.html?match={ctx.channel.id}"
+    )
+
     await ctx.send(f"🎥 **Overlay OBS:**\n{overlay_url}")
 
     await ws_broadcast(str(ctx.channel.id))
+
 
 # =========================
 # RESULTS
