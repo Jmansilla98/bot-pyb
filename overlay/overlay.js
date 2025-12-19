@@ -8,7 +8,8 @@ const modeEl = document.getElementById("mode");
 const mapsEl = document.getElementById("maps");
 const finalTop = document.getElementById("final-maps-top");
 const finalCenter = document.getElementById("final-center");
-let turnStart = null;
+
+let turnStart = null;     // epoch seconds
 let turnDuration = 30;
 let timerRAF = null;
 
@@ -22,7 +23,7 @@ ws.onmessage = (ev) => {
 };
 
 /* =========================
-   MAP NAME → IMAGE SLUG
+   HELPERS
 ========================= */
 function mapToImage(name) {
   return name
@@ -32,76 +33,15 @@ function mapToImage(name) {
 }
 
 function teamToLogo(name) {
-  return name
-    .replace(/\s+/g, "_"); // para espacios en URL
+  // tu convención actual: reemplaza espacios por "_" y lo pasas a lower
+  return name.replace(/\s+/g, "_");
 }
 
-
-function render(state) {
-  if (state.turn_started_at) {
-  turnStart = state.turn_started_at;
-  turnDuration = state.turn_duration || 30;
-  }
-  const teamAName = state.teams.A.name;
-  const teamBName = state.teams.B.name;
-
-  teamAEl.innerHTML = `
-    <img class="team-logo left" src="/static/logos/${teamToLogo(teamAName.toLowerCase())}.webp" />
-    <span>${teamAName}</span>
-  `;
-
-  teamBEl.innerHTML = `
-    <span>${teamBName}</span>
-    <img class="team-logo right" src="/static/logos/${teamToLogo(teamBName.toLowerCase())}.webp" />
-  `;
-
-
-  // RESET GLOW
-  teamAEl.classList.remove("active");
-  teamBEl.classList.remove("active");
-
-  const step = state.flow[state.step];
-  const finished = state.step >= state.flow.length;
-
-  if (step?.team === "A") teamAEl.classList.add("active");
-  if (step?.team === "B") teamBEl.classList.add("active");
-  if (step?.team === "A") startTimer("A");
-  if (step?.team === "B") startTimer("B");
-
-
-  modeEl.textContent = step?.mode || "";
-  estadoEl.textContent = step
-    ? `${step.type.replace("_", " ").toUpperCase()} · TEAM ${step.team || ""}`
-    : "FINALIZADO";
-
-  /* =========================
-     MAPAS PICKED
-  ========================= */
-  const picked = Object.entries(state.maps)
-    .filter(([_, m]) => m.status === "picked")
-    .sort((a, b) => a[1].slot - b[1].slot);
-
-  /* =========================
-     TOP MAPS
-  ========================= */
-  finalTop.innerHTML = "";
-  if (!finished) {
-    picked.forEach(([key, m]) => {
-      const name = key.split("::")[1];
-      const img = mapToImage(name);
-
-      const div = document.createElement("div");
-      div.className = "final-map";
-      div.innerHTML = `
-        <div class="map-img" style="background-image:url('/static/maps/${img}.jpg')"></div>
-        <div class="label">
-          M${m.slot} · ${m.mode}<br>
-          Pick ${m.team}${m.side ? " · " + m.side : ""}
-        </div>
-      `;
-      finalTop.appendChild(div);
-    });
-  }
+function getResultForSlot(state, slot) {
+  if (!state || !state.map_results) return null;
+  // en JSON los keys pueden venir como string "1"
+  return state.map_results[slot] || state.map_results[String(slot)] || null;
+}
 
 function startTimer(team) {
   cancelAnimationFrame(timerRAF);
@@ -115,7 +55,8 @@ function startTimer(team) {
   function tick() {
     if (!turnStart) return;
 
-    const now = performance.now() / 1000;
+    // turnStart viene en epoch seconds (time.time()), así que usamos Date.now()
+    const now = Date.now() / 1000;
     const elapsed = now - turnStart;
     const progress = Math.min(elapsed / turnDuration, 1);
 
@@ -129,9 +70,85 @@ function startTimer(team) {
   tick();
 }
 
+/* =========================
+   RENDER
+========================= */
+function render(state) {
+  // timer
+  if (state.turn_started_at) {
+    turnStart = state.turn_started_at;
+    turnDuration = state.turn_duration || 30;
+  }
+
+  const teamAName = state.teams.A.name;
+  const teamBName = state.teams.B.name;
+
+  teamAEl.innerHTML = `
+    <img class="team-logo left" src="/static/logos/${teamToLogo(teamAName.toLowerCase())}.webp" />
+    <span class="team-name">${teamAName}</span>
+  `;
+
+  teamBEl.innerHTML = `
+    <span class="team-name">${teamBName}</span>
+    <img class="team-logo right" src="/static/logos/${teamToLogo(teamBName.toLowerCase())}.webp" />
+  `;
+
+  // RESET GLOW
+  teamAEl.classList.remove("active");
+  teamBEl.classList.remove("active");
+
+  const step = state.flow[state.step];
+  const finished = state.step >= state.flow.length;
+
+  if (step?.team === "A") {
+    teamAEl.classList.add("active");
+    startTimer("A");
+  }
+  if (step?.team === "B") {
+    teamBEl.classList.add("active");
+    startTimer("B");
+  }
+
+  modeEl.textContent = step?.mode || "";
+  estadoEl.textContent = step
+    ? `${step.type.replace("_", " ").toUpperCase()} · TEAM ${step.team || ""}`
+    : "FINALIZADO";
+
+  /* =========================
+     MAPAS PICKED (orden por slot)
+  ========================= */
+  const picked = Object.entries(state.maps)
+    .filter(([_, m]) => m.status === "picked")
+    .sort((a, b) => a[1].slot - b[1].slot);
+
+  /* =========================
+     TOP MAPS (mientras NO ha terminado el flujo)
+     + ahora pinta score si existe
+  ========================= */
+  finalTop.innerHTML = "";
+  if (!finished) {
+    picked.forEach(([key, m]) => {
+      const name = key.split("::")[1];
+      const img = mapToImage(name);
+      const res = getResultForSlot(state, m.slot);
+
+      const div = document.createElement("div");
+      div.className = "final-map";
+      div.innerHTML = `
+        <div class="map-img" style="background-image:url('/static/maps/${img}.jpg')"></div>
+        ${res?.score ? `<div class="score-badge">${res.score}</div>` : ""}
+        <div class="label">
+          M${m.slot} · ${m.mode}<br>
+          Pick ${m.team}${m.side ? " · " + m.side : ""}
+        </div>
+      `;
+      finalTop.appendChild(div);
+    });
+  }
 
   /* =========================
      ACTIVE MODE MAPS
+     + ahora pinta score si existe y el mapa tiene slot
   ========================= */
   mapsEl.innerHTML = "";
   const activeMode = step?.mode;
@@ -141,6 +158,7 @@ function startTimer(team) {
     .forEach(([key, m]) => {
       const name = key.split("::")[1];
       const img = mapToImage(name);
+      const res = m.slot ? getResultForSlot(state, m.slot) : null;
 
       const card = document.createElement("div");
       card.className = "map-card";
@@ -150,6 +168,7 @@ function startTimer(team) {
       card.innerHTML = `
         <div class="map-img" style="background-image:url('/static/maps/${img}.jpg')"></div>
         <div class="map-overlay"></div>
+        ${res?.score ? `<div class="score-badge">${res.score}</div>` : ""}
         <div class="map-info">
           <div class="map-name">${name}</div>
           <div class="map-meta">
@@ -162,7 +181,8 @@ function startTimer(team) {
     });
 
   /* =========================
-     FINAL CENTER
+     FINAL CENTER (cuando TERMINA el flujo)
+     + ahora pinta score encima
   ========================= */
   if (finished) {
     finalCenter.classList.remove("hidden");
@@ -171,11 +191,13 @@ function startTimer(team) {
     picked.forEach(([key, m]) => {
       const name = key.split("::")[1];
       const img = mapToImage(name);
+      const res = getResultForSlot(state, m.slot);
 
       const div = document.createElement("div");
       div.className = "final-map big";
       div.innerHTML = `
         <div class="map-img" style="background-image:url('/static/maps/${img}.jpg')"></div>
+        ${res?.score ? `<div class="score-badge">${res.score}</div>` : ""}
         <div class="label">
           MAP ${m.slot} · ${m.mode}<br>
           ${state.teams[m.team]?.name || m.team}
