@@ -113,21 +113,21 @@ async def on_ready():
 
 async def send_ready_buttons(channel: discord.TextChannel, state: dict):
     view = discord.ui.View(timeout=None)
-    view.add_item(ReadyButton(state["channel_id"], "A"))
-    view.add_item(ReadyButton(state["channel_id"], "B"))
+    view.add_item(ReadyButton(channel.id, "A"))
+    view.add_item(ReadyButton(channel.id, "B"))
 
     await channel.send(
         embed=discord.Embed(
-            title="🎮 Preparados para Pick & Ban",
+            title="🎮 Pick & Ban",
             description=(
-                "Cada equipo debe confirmar que está listo.\n\n"
-                "Cuando **ambos equipos** estén listos, el **árbitro** podrá elegir "
-                "si la serie es **BO3 o BO5**."
+                "Cuando **ambos equipos** estén listos, el **árbitro** elegirá "
+                "si la serie es **BO3 o BO5** y comenzará el Pick & Ban."
             ),
             color=0x00ffcc
         ),
         view=view
     )
+
 
 
 class ReadyButton(discord.ui.Button):
