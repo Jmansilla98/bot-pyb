@@ -142,7 +142,7 @@ function render(state) {
       const name = key.split("::")[1];
       const img = mapToImage(name);
       const res = getResultForSlot(state, m.slot);
-
+      
       const div = document.createElement("div");
       div.className = "final-map";
       div.innerHTML = `
