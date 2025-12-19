@@ -462,7 +462,7 @@ async def start(ctx, teamA: discord.Role, teamB: discord.Role):
     overlay_url = f"{APP_URL}/overlay.html?match={ctx.channel.id}" if APP_URL else f"/overlay.html?match={ctx.channel.id}"
 
     
-    send_match_planning_embed(ctx.channel.id, MATCHES[ctx.channel.id])
+    await send_match_planning_embed(ctx.channel.id, MATCHES[ctx.channel.id])
 
     
 
