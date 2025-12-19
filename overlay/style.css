@@ -130,6 +130,86 @@ html, body {
 }
 
 /* =========================
+   WINNER OVERLAY
+========================= */
+
+.final-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+
+  background: transparent; /* MUY IMPORTANTE para OBS */
+  pointer-events: none;
+
+  animation: winnerFadeIn 0.6s ease-out forwards;
+}
+
+.winner-title {
+  font-size: 28px;
+  letter-spacing: 4px;
+  font-weight: 700;
+  color: #7df9ff;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+
+  text-shadow:
+    0 0 6px rgba(125, 249, 255, 0.8),
+    0 0 14px rgba(125, 249, 255, 0.5);
+}
+
+.winner-team {
+  font-size: 64px;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: #ffffff;
+
+  padding: 12px 32px;
+  border-radius: 12px;
+
+  background: linear-gradient(
+    135deg,
+    rgba(0, 255, 198, 0.25),
+    rgba(10, 163, 255, 0.25)
+  );
+
+  border: 2px solid rgba(125, 249, 255, 0.6);
+
+  text-shadow:
+    0 0 10px rgba(0, 255, 198, 0.9),
+    0 0 20px rgba(0, 255, 198, 0.5);
+
+  box-shadow:
+    0 0 20px rgba(0, 255, 198, 0.25),
+    inset 0 0 20px rgba(0, 255, 198, 0.15);
+}
+
+.winner-score {
+  margin-top: 14px;
+  font-size: 26px;
+  font-weight: 600;
+  color: #ffffffcc;
+  letter-spacing: 2px;
+}
+
+/* =========================
+   ANIMATIONS
+========================= */
+
+@keyframes winnerFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* =========================
    MAP CARDS BASE
 ========================= */
 .map-row {
