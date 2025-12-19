@@ -9,7 +9,7 @@ const mapsEl = document.getElementById("maps");
 const finalTop = document.getElementById("final-maps-top");
 const finalCenter = document.getElementById("final-center");
 
-let turnStart = null;     // epoch seconds
+let turnStart = null;
 let turnDuration = 30;
 let timerRAF = null;
 
@@ -26,23 +26,21 @@ ws.onmessage = (ev) => {
    HELPERS
 ========================= */
 function mapToImage(name) {
-  return name
-    .toLowerCase()
-    .replace(/\s+/g, "")
-    .replace(/[^a-z0-9]/g, "");
+  return name.toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9]/g, "");
 }
 
 function teamToLogo(name) {
-  // tu convención actual: reemplaza espacios por "_" y lo pasas a lower
-  return name.replace(/\s+/g, "_");
+  return name.replace(/\s+/g, "_").toLowerCase();
 }
 
 function getResultForSlot(state, slot) {
-  if (!state || !state.map_results) return null;
-  // en JSON los keys pueden venir como string "1"
-  return state.map_results[slot] || state.map_results[String(slot)] || null;
+  if (!state.map_results) return null;
+  return state.map_results[String(slot)] || state.map_results[slot] || null;
 }
 
+/* =========================
+   TIMER
+========================= */
 function startTimer(team) {
   cancelAnimationFrame(timerRAF);
 
@@ -55,7 +53,6 @@ function startTimer(team) {
   function tick() {
     if (!turnStart) return;
 
-    // turnStart viene en epoch seconds (time.time()), así que usamos Date.now()
     const now = Date.now() / 1000;
     const elapsed = now - turnStart;
     const progress = Math.min(elapsed / turnDuration, 1);
@@ -70,17 +67,11 @@ function startTimer(team) {
   tick();
 }
 
-function getPickedMapsOrdered(state) {
-  return Object.entries(state.maps)
-    .filter(([_, m]) => m.slot != null)
-    .sort((a, b) => a[1].slot - b[1].slot);
-}
-
 /* =========================
    RENDER
 ========================= */
 function render(state) {
-  // timer
+
   if (state.turn_started_at) {
     turnStart = state.turn_started_at;
     turnDuration = state.turn_duration || 30;
@@ -90,21 +81,20 @@ function render(state) {
   const teamBName = state.teams.B.name;
 
   teamAEl.innerHTML = `
-    <img class="team-logo left" src="/static/logos/${teamToLogo(teamAName.toLowerCase())}.webp" />
+    <img class="team-logo left" src="/static/logos/${teamToLogo(teamAName)}.webp">
     <span class="team-name">${teamAName}</span>
   `;
 
   teamBEl.innerHTML = `
     <span class="team-name">${teamBName}</span>
-    <img class="team-logo right" src="/static/logos/${teamToLogo(teamBName.toLowerCase())}.webp" />
+    <img class="team-logo right" src="/static/logos/${teamToLogo(teamBName)}.webp">
   `;
 
-  // RESET GLOW
   teamAEl.classList.remove("active");
   teamBEl.classList.remove("active");
 
   const step = state.flow[state.step];
-  const finished = state.step >= state.flow.length;
+  const finishedFlow = state.step >= state.flow.length;
 
   if (step?.team === "A") {
     teamAEl.classList.add("active");
@@ -114,35 +104,31 @@ function render(state) {
     teamBEl.classList.add("active");
     startTimer("B");
   }
-  // WINNER
-  if (state.winner) {
-    estadoEl.textContent = `🏆 GANADOR: ${state.teams[state.winner].name}`;
-    teamAEl.classList.remove("timed");
-    teamBEl.classList.remove("timed");
-  }
 
-  modeEl.textContent = step?.mode || "";
-  estadoEl.textContent = step
-    ? `${step.type.replace("_", " ").toUpperCase()} · TEAM ${step.team || ""}`
-    : "FINALIZADO";
+  modeEl.textContent = state.mode || "";
+  estadoEl.textContent = state.series_finished
+    ? `GANADOR: ${state.teams[state.series_winner]?.name}`
+    : step
+      ? `${step.type.replace("_", " ").toUpperCase()} · TEAM ${step.team || ""}`
+      : "ESPERANDO";
 
   /* =========================
-     MAPAS PICKED (orden por slot)
+     MAPAS PICKED (ordenados)
   ========================= */
-  const picked = getPickedMapsOrdered(state);
-
+  const picked = Object.entries(state.maps)
+    .filter(([_, m]) => m.status === "picked")
+    .sort((a, b) => a[1].slot - b[1].slot);
 
   /* =========================
-     TOP MAPS (mientras NO ha terminado el flujo)
-     + ahora pinta score si existe
+     TOP MAPS
   ========================= */
   finalTop.innerHTML = "";
-  if (!finished) {
+  if (!state.series_finished) {
     picked.forEach(([key, m]) => {
       const name = key.split("::")[1];
       const img = mapToImage(name);
       const res = getResultForSlot(state, m.slot);
-      
+
       const div = document.createElement("div");
       div.className = "final-map";
       div.innerHTML = `
@@ -158,8 +144,7 @@ function render(state) {
   }
 
   /* =========================
-     ACTIVE MODE MAPS
-     + ahora pinta score si existe y el mapa tiene slot
+     MAPAS ACTIVOS
   ========================= */
   mapsEl.innerHTML = "";
   const activeMode = step?.mode;
@@ -192,31 +177,18 @@ function render(state) {
     });
 
   /* =========================
-     FINAL CENTER (cuando TERMINA el flujo)
-     + ahora pinta score encima
+     FINAL CENTER
   ========================= */
-  if (finished) {
+  if (state.series_finished) {
     finalCenter.classList.remove("hidden");
-    finalCenter.innerHTML = "";
-
-    picked.forEach(([key, m]) => {
-      const name = key.split("::")[1];
-      const img = mapToImage(name);
-      const res = getResultForSlot(state, m.slot);
-
-      const div = document.createElement("div");
-      div.className = "final-map big";
-      div.innerHTML = `
-        <div class="map-img" style="background-image:url('/static/maps/${img}.jpg')"></div>
-        ${res?.score ? `<div class="score-badge">${res.score}</div>` : ""}
-        <div class="label">
-          MAP ${m.slot} · ${m.mode}<br>
-          ${state.teams[m.team]?.name || m.team}
-          ${m.side ? " · " + m.side : ""}
+    finalCenter.innerHTML = `
+      <div class="winner">
+        🏆 ${state.teams[state.series_winner].name}
+        <div class="winner-score">
+          ${state.series_score.A} - ${state.series_score.B}
         </div>
-      `;
-      finalCenter.appendChild(div);
-    });
+      </div>
+    `;
   } else {
     finalCenter.classList.add("hidden");
   }
