@@ -6,7 +6,6 @@ from aiohttp import web
 import aiohttp
 import pathlib
 import os
-import time
 
 # =========================
 # CONFIG
@@ -90,9 +89,10 @@ async def overlay(request):
 async def websocket_handler(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
-    match_id = request.query.get("match")
 
+    match_id = request.query.get("match")
     WS_CLIENTS.setdefault(match_id, set()).add(ws)
+
     if int(match_id) in MATCHES:
         await ws_broadcast(match_id)
 
@@ -111,11 +111,7 @@ async def ws_broadcast(match_id):
     if not state:
         return
 
-    payload = json.dumps({
-        "type": "state",
-        "state": state
-    })
-
+    payload = json.dumps({"type": "state", "state": state})
     for ws in list(WS_CLIENTS.get(match_id, [])):
         try:
             await ws.send_str(payload)
@@ -156,58 +152,20 @@ def user_can_interact(interaction, state, step):
         for r in interaction.user.roles
     )
 
-def describe_step(state):
-    if state["step"] >= len(state["flow"]):
-        return "✅ **PICK & BAN FINALIZADO**"
-
-    step = state["flow"][state["step"]]
-    action = step["type"].replace("_", " ").upper()
-    team = state["teams"].get(step.get("team"), {}).get("name", "Sistema")
-
-    return (
-        f"⏱️ **Tiempo por turno:** {TURN_TIME_SECONDS}s\n"
-        f"🎯 **Acción:** {action}\n"
-        f"🕹️ **Modo:** {step.get('mode','')}\n"
-        f"👤 **Turno:** {team}"
-    )
-
-def build_embed(state):
-    embed = discord.Embed(
-        title=f"PICK & BAN — {state.get('mode','')}",
-        description=describe_step(state),
-        color=0x2ecc71
-    )
-
-    for mode in ["HP", "SnD", "OVR"]:
-        lines = []
-        for k, m in state["maps"].items():
-            if m["mode"] != mode:
-                continue
-            name = k.split("::")[1]
-
-            if m["status"] == "banned":
-                lines.append(f"❌ {name}")
-            elif m["status"] == "picked":
-                lines.append(f"✅ {name} · M{m['slot']} ({m['team']})")
-            else:
-                lines.append(f"⬜ {name}")
-
-        embed.add_field(name=mode, value="\n".join(lines) or "—", inline=False)
-
-    return embed
-
 # =========================
 # START COMMAND
 # =========================
 @bot.command()
 async def start(ctx, teamA: discord.Role, teamB: discord.Role):
+    loop = asyncio.get_event_loop()
+
     MATCHES[ctx.channel.id] = {
         "flow": [],
         "step": 0,
         "maps": build_maps(),
         "map_results": {},
         "mode": None,
-        "turn_started_at": time.time(),
+        "turn_started_at": loop.time(),
         "turn_duration": TURN_TIME_SECONDS,
         "teams": {
             "A": {"name": teamA.name, "role_id": teamA.id, "ready": False},
@@ -234,7 +192,7 @@ async def start(ctx, teamA: discord.Role, teamB: discord.Role):
     await ws_broadcast(str(ctx.channel.id))
 
 # =========================
-# READY + BO SELECT
+# READY / BO SELECT
 # =========================
 class ReadyButton(discord.ui.Button):
     def __init__(self, channel_id, team):
@@ -243,12 +201,13 @@ class ReadyButton(discord.ui.Button):
         self.team = team
 
     async def callback(self, interaction):
+        await interaction.response.defer(ephemeral=True)
+
         state = MATCHES[self.channel_id]
         if not any(r.id == state["teams"][self.team]["role_id"] for r in interaction.user.roles):
-            return await interaction.response.send_message("⛔ No es tu equipo", ephemeral=True)
+            return
 
         state["teams"][self.team]["ready"] = True
-        await interaction.response.send_message("✅ Confirmado", ephemeral=True)
 
         if all(t["ready"] for t in state["teams"].values()):
             await show_bo_selector(interaction.channel, self.channel_id)
@@ -266,21 +225,25 @@ class ModeButton(discord.ui.Button):
         self.mode = mode
 
     async def callback(self, interaction):
+        await interaction.response.defer(ephemeral=True)
+
         if not any(r.name.lower() == ARBITRO_ROLE_NAME.lower() for r in interaction.user.roles):
-            return await interaction.response.send_message("⛔ Solo árbitro", ephemeral=True)
+            return
 
         state = MATCHES[self.channel_id]
         state["mode"] = self.mode
         state["flow"] = FLOW_BO3 if self.mode == "BO3" else FLOW_BO5
         state["step"] = 0
-        state["turn_started_at"] = time.time()
+        state["turn_started_at"] = asyncio.get_event_loop().time()
 
-        await interaction.response.send_message(f"🎮 {self.mode} seleccionado", ephemeral=True)
-        await interaction.channel.send(embed=build_embed(state), view=PickBanView(self.channel_id))
+        await interaction.channel.send(
+            embed=build_embed(state),
+            view=PickBanView(self.channel_id)
+        )
         await ws_broadcast(str(self.channel_id))
 
 # =========================
-# PICK & BAN UI
+# PICK & BAN VIEW
 # =========================
 class PickBanView(discord.ui.View):
     def __init__(self, channel_id):
@@ -309,15 +272,16 @@ class MapButton(discord.ui.Button):
         self.map_key = map_key
 
     async def callback(self, interaction):
+        await interaction.response.defer()
+
         state = MATCHES[self.channel_id]
         step = state["flow"][state["step"]]
 
         if not user_can_interact(interaction, state, step):
-            return await interaction.response.send_message("⛔ No es tu turno", ephemeral=True)
+            return
 
         if step["type"] == "ban":
-            state["maps"][self.map_key]["status"] = "banned"
-            state["maps"][self.map_key]["team"] = step["team"]
+            state["maps"][self.map_key].update({"status": "banned", "team": step["team"]})
         else:
             state["maps"][self.map_key].update({
                 "status": "picked",
@@ -326,7 +290,7 @@ class MapButton(discord.ui.Button):
             })
 
         state["step"] += 1
-        state["turn_started_at"] = time.time()
+        state["turn_started_at"] = asyncio.get_event_loop().time()
 
         await ws_broadcast(str(self.channel_id))
         await interaction.message.edit(embed=build_embed(state), view=PickBanView(self.channel_id))
@@ -338,18 +302,20 @@ class SideButton(discord.ui.Button):
         self.side = side
 
     async def callback(self, interaction):
+        await interaction.response.defer()
+
         state = MATCHES[self.channel_id]
         step = state["flow"][state["step"]]
 
         if not user_can_interact(interaction, state, step):
-            return await interaction.response.send_message("⛔ No es tu turno", ephemeral=True)
+            return
 
         for m in state["maps"].values():
             if m["slot"] == step["slot"]:
                 m["side"] = self.side
 
         state["step"] += 1
-        state["turn_started_at"] = time.time()
+        state["turn_started_at"] = asyncio.get_event_loop().time()
 
         await ws_broadcast(str(self.channel_id))
         await interaction.message.edit(embed=build_embed(state), view=PickBanView(self.channel_id))
@@ -364,9 +330,6 @@ class ResultButton(discord.ui.Button):
         self.slot = slot
 
     async def callback(self, interaction):
-        if not any(r.name.lower() == ARBITRO_ROLE_NAME.lower() for r in interaction.user.roles):
-            return await interaction.response.send_message("⛔ Solo árbitro", ephemeral=True)
-
         await interaction.response.send_modal(ResultModal(self.channel_id, self.slot))
 
 class ResultModal(discord.ui.Modal, title="Resultado del mapa"):
@@ -387,6 +350,39 @@ class ResultModal(discord.ui.Modal, title="Resultado del mapa"):
 
         await ws_broadcast(str(self.channel_id))
         await interaction.response.send_message("✅ Resultado guardado", ephemeral=True)
+
+# =========================
+# EMBED
+# =========================
+def build_embed(state):
+    embed = discord.Embed(
+        title=f"PICK & BAN — {state.get('mode','')}",
+        description=describe_step(state),
+        color=0x2ecc71
+    )
+
+    for mode in ["HP", "SnD", "OVR"]:
+        lines = []
+        for k, m in state["maps"].items():
+            if m["mode"] != mode:
+                continue
+            name = k.split("::")[1]
+            if m["status"] == "banned":
+                lines.append(f"❌ {name}")
+            elif m["status"] == "picked":
+                lines.append(f"✅ {name} · M{m['slot']} ({m['team']})")
+            else:
+                lines.append(f"⬜ {name}")
+        embed.add_field(name=mode, value="\n".join(lines) or "—", inline=False)
+
+    return embed
+
+def describe_step(state):
+    if state["step"] >= len(state["flow"]):
+        return "✅ **PICK & BAN FINALIZADO**"
+    step = state["flow"][state["step"]]
+    team = state["teams"].get(step.get("team"), {}).get("name", "Sistema")
+    return f"🎯 **Acción:** {step['type'].upper()} · **Turno:** {team}"
 
 # =========================
 # RUN
