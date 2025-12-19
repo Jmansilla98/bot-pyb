@@ -111,22 +111,25 @@ async def on_ready():
     asyncio.create_task(start_web())
     print("🤖 Bot listo")
 
-async def send_ready_buttons(channel: discord.TextChannel, state: dict):
+async def send_ready_buttons(channel: discord.TextChannel, channel_id: int):
+    state = MATCHES[channel_id]
+
     view = discord.ui.View(timeout=None)
-    view.add_item(ReadyButton(channel.id, "A"))
-    view.add_item(ReadyButton(channel.id, "B"))
+    view.add_item(ReadyButton(channel_id, "A"))
+    view.add_item(ReadyButton(channel_id, "B"))
 
     await channel.send(
         embed=discord.Embed(
             title="🎮 Pick & Ban",
             description=(
-                "Cuando **ambos equipos** estén listos, el **árbitro** elegirá "
-                "si la serie es **BO3 o BO5** y comenzará el Pick & Ban."
+                "Cuando **ambos equipos** estén listos,\n"
+                "el **árbitro** podrá elegir BO3 o BO5 sees"
             ),
             color=0x00ffcc
         ),
         view=view
     )
+
 
 
 
@@ -154,6 +157,36 @@ class ReadyButton(discord.ui.Button):
         if all(t["ready"] for t in state["teams"].values()):
             await show_bo_selector(interaction.channel, self.channel_id)
 
+async def show_bo_selector(channel, channel_id):
+    view = discord.ui.View(timeout=None)
+    view.add_item(ModeButton(channel_id, "BO3"))
+    view.add_item(ModeButton(channel_id, "BO5"))
+    await channel.send("⚖️ Árbitro: selecciona formato", view=view)
+
+
+class ModeButton(discord.ui.Button):
+    def __init__(self, channel_id, mode):
+        super().__init__(label=mode, style=discord.ButtonStyle.primary)
+        self.channel_id = channel_id
+        self.mode = mode
+
+    async def callback(self, interaction):
+        await interaction.response.defer(ephemeral=True)
+
+        if not is_arbitro(interaction.user):
+            return
+
+        state = MATCHES[self.channel_id]
+        state["mode"] = self.mode
+        state["flow"] = FLOW_BO3 if self.mode == "BO3" else FLOW_BO5
+        state["step"] = 0
+        state["turn_started_at"] = time.time()
+
+        await interaction.channel.send(
+            embed=build_embed(state),
+            view=PickBanView(self.channel_id)
+        )
+        await ws_broadcast(str(self.channel_id))
 # =========================
 # HELPERS
 # =========================
@@ -222,8 +255,9 @@ class CreateEventModal(discord.ui.Modal, title="Crear evento del partido"):
             f"✅ Evento creado: **{event.name}**",
             ephemeral=True
         )
-        # 👉 Ahora sí, mostrar botones de LISTO
-        await send_ready_buttons(interaction.channel, state)
+        # AHORA sí mostramos los botones de LISTO
+        await send_ready_buttons(interaction.channel, self.channel_id)
+
 
 
 # =========================
