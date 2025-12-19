@@ -110,11 +110,142 @@ async def websocket_handler(request):
 
 app.add_routes(routes)
 
+
+
 async def start_web():
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
+
+
+@routes.get("/arbitro")
+async def arbitro_panel(request):
+    return web.FileResponse(OVERLAY_DIR / "arbitro.html")
+
+@routes.get("/api/matches")
+async def api_matches(request):
+    data = []
+
+    for match_id, state in MATCHES.items():
+        teams = state["teams"]
+        results = state.get("map_results", {})
+
+        # Estado del partido
+        if not state["flow"]:
+            status = "Sin comenzar"
+        elif state["step"] < len(state["flow"]):
+            status = "En curso"
+        else:
+            status = "Finalizado"
+
+        data.append({
+            "match_id": match_id,
+            "teams": f"{teams['A']['name']} vs {teams['B']['name']}",
+            "mode": state.get("mode"),
+            "status": status,
+            "results": results
+        })
+
+    return web.json_response(data)
+
+
+async def send_match_planning_embed(channel, state):
+    embed = discord.Embed(
+        title="📅 Organización del Partido",
+        description=(
+            "Este mensaje sirve para **acordar la hora del partido**.\n\n"
+            "🔹 Un/a **árbitro/a** debe crear el evento cuando los equipos lo acuerden.\n"
+            "🔹 El evento se creará en este canal y notificará a ambos equipos.\n\n"
+            "Cuando el evento esté creado, el flujo de **Pick & Ban** continuará."
+        ),
+        color=0x3498db
+    )
+
+    embed.add_field(
+        name="Equipos",
+        value=f"🅰️ **{state['teams']['A']['name']}**\n🅱️ **{state['teams']['B']['name']}**",
+        inline=False
+    )
+
+    view = discord.ui.View(timeout=None)
+    view.add_item(CreateEventButton(state["channel_id"]))
+
+    await channel.send(embed=embed, view=view)
+
+class CreateEventButton(discord.ui.Button):
+    def __init__(self, channel_id):
+        super().__init__(
+            label="📅 Crear evento del partido",
+            style=discord.ButtonStyle.primary
+        )
+        self.channel_id = channel_id
+
+    async def callback(self, interaction: discord.Interaction):
+        if not any(r.name.lower() == ARBITRO_ROLE_NAME.lower() for r in interaction.user.roles):
+            return await interaction.response.send_message(
+                "⛔ Solo el árbitro puede crear el evento",
+                ephemeral=True
+            )
+
+        await interaction.response.send_modal(CreateEventModal(self.channel_id))
+
+
+class CreateEventModal(discord.ui.Modal, title="Crear evento del partido"):
+    date = discord.ui.TextInput(
+        label="Fecha (YYYY-MM-DD)",
+        placeholder="2025-02-01"
+    )
+    time = discord.ui.TextInput(
+        label="Hora inicio (HH:MM)",
+        placeholder="21:30"
+    )
+    duration = discord.ui.TextInput(
+        label="Duración (minutos)",
+        placeholder="90",
+        default="90"
+    )
+
+    def __init__(self, channel_id):
+        super().__init__()
+        self.channel_id = channel_id
+
+    async def on_submit(self, interaction: discord.Interaction):
+        state = MATCHES[self.channel_id]
+
+        from datetime import datetime, timedelta
+
+        try:
+            start = datetime.fromisoformat(f"{self.date.value} {self.time.value}")
+            duration = int(self.duration.value)
+            end = start + timedelta(minutes=duration)
+        except Exception:
+            return await interaction.response.send_message(
+                "❌ Fecha u hora incorrectas",
+                ephemeral=True
+            )
+
+        guild = interaction.guild
+        channel = interaction.channel
+
+        event = await guild.create_scheduled_event(
+            name=f"{state['teams']['A']['name']} vs {state['teams']['B']['name']}",
+            description="Partido oficial con Pick & Ban",
+            start_time=start,
+            end_time=end,
+            location=f"Canal #{channel.name}",
+            entity_type=discord.EntityType.external,
+            privacy_level=discord.PrivacyLevel.guild_only
+        )
+
+        await interaction.response.send_message(
+            f"✅ Evento creado correctamente:\n📅 **{event.name}**",
+            ephemeral=True
+        )
+
+        # AHORA sí mostramos los botones de LISTO
+        await send_ready_buttons(channel, state)
+
 
 @bot.event
 async def on_ready():
@@ -292,6 +423,20 @@ def build_embed(state):
 
     return embed
 
+async def send_ready_buttons(channel, state):
+    view = discord.ui.View(timeout=None)
+    view.add_item(ReadyButton(state["channel_id"], "A"))
+    view.add_item(ReadyButton(state["channel_id"], "B"))
+
+    await channel.send(
+        embed=discord.Embed(
+            title="🎮 Pick & Ban",
+            description="Cuando ambos equipos estén listos, el árbitro elegirá BO3 o BO5",
+            color=0x00ffcc
+        ),
+        view=view
+    )
+
 # =========================
 # START COMMAND
 # =========================
@@ -316,18 +461,10 @@ async def start(ctx, teamA: discord.Role, teamB: discord.Role):
 
     overlay_url = f"{APP_URL}/overlay.html?match={ctx.channel.id}" if APP_URL else f"/overlay.html?match={ctx.channel.id}"
 
-    view = discord.ui.View(timeout=None)
-    view.add_item(ReadyButton(ctx.channel.id, "A"))
-    view.add_item(ReadyButton(ctx.channel.id, "B"))
+    
+    send_match_planning_embed(ctx.channel.id, MATCHES[ctx.channel.id])
 
-    await ctx.send(
-        embed=discord.Embed(
-            title="🎮 Pick & Bans",
-            description="Ambos equipos deben confirmar que están listos",
-            color=0x00ffcc
-        ),
-        view=view
-    )
+    
 
     await ctx.send(f"🎥 **Overlay OBS:**\n{overlay_url}")
     await ws_broadcast(str(ctx.channel.id))
