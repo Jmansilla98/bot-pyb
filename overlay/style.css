@@ -6,12 +6,13 @@
   font-family: "Rajdhani", "Inter", "Segoe UI", Arial, sans-serif;
 }
 
-body {
+html, body {
   margin: 0;
+  padding: 0;
   background: transparent;
   overflow: hidden;
-  color: #fff;
 }
+
 
 /* =========================
    OVERLAY BASE
@@ -25,19 +26,7 @@ body {
 }
 
 /* subtle motion light */
-#overlay::before {
-  content: "";
-  position: absolute;
-  inset: -30%;
-  background: linear-gradient(
-    110deg,
-    transparent 45%,
-    rgba(255,255,255,0.05) 50%,
-    transparent 55%
-  );
-  animation: bgSweep 10s linear infinite;
-  pointer-events: none;
-}
+
 
 @keyframes bgSweep {
   from { transform: translateX(-35%); }
