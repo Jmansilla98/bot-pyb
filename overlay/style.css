@@ -59,12 +59,12 @@ html, body {
 
 .team.left {
   justify-content: flex-start;
-  border-left: 10px solid #00ff88;
+  border-left: 10px solid #001eff;
 }
 
 .team.right {
   justify-content: flex-end;
-  border-right: 10px solid #00ff88;
+  border-right: 10px solid #ff0000;
   text-align: right;
 }
 
@@ -76,7 +76,8 @@ html, body {
   left: 0;
   height: 6px;
   width: var(--timer-progress, 100%);
-  background: linear-gradient(90deg, #00ff88, #00ccff);
+  border-left: 10px solid #001eff;
+  background: linear-gradient(90deg, #ff0000, #0015ff);
   transition: width 0.1s linear;
 }
 
@@ -267,7 +268,7 @@ html, body {
   font-size: 18px;
   font-weight: 900;
   background: rgba(0,0,0,0.8);
-  border: 2px solid #00ff88;
+  border: 2px solid #ffffff;
   border-radius: 8px;
 }
 
