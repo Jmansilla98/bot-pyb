@@ -6,6 +6,7 @@ from aiohttp import web
 import aiohttp
 import pathlib
 import os
+import time
 
 # =========================
 # CONFIG
@@ -37,28 +38,6 @@ HP_MAPS = ["Blackheart", "Colossus", "Den", "Exposure", "Scar"]
 SND_MAPS = ["Colossus", "Den", "Exposure", "Raid", "Scar"]
 OVR_MAPS = ["Den", "Exposure", "Scar"]
 
-# =========================
-# FLOWS
-# =========================
-FLOW_BO5 = [
-    {"mode": "HP", "type": "ban", "team": "A"},
-    {"mode": "HP", "type": "ban", "team": "B"},
-    {"mode": "HP", "type": "pick_map", "team": "A", "slot": 1},
-    {"mode": "HP", "type": "pick_side", "team": "B", "slot": 1},
-    {"mode": "HP", "type": "pick_map", "team": "B", "slot": 4},
-    {"mode": "HP", "type": "pick_side", "team": "A", "slot": 4},
-    {"mode": "SnD", "type": "ban", "team": "B"},
-    {"mode": "SnD", "type": "ban", "team": "A"},
-    {"mode": "SnD", "type": "pick_map", "team": "B", "slot": 2},
-    {"mode": "SnD", "type": "pick_side", "team": "A", "slot": 2},
-    {"mode": "SnD", "type": "pick_map", "team": "A", "slot": 5},
-    {"mode": "SnD", "type": "pick_side", "team": "B", "slot": 5},
-    {"mode": "OVR", "type": "ban", "team": "A"},
-    {"mode": "OVR", "type": "ban", "team": "B"},
-    {"mode": "OVR", "type": "auto_decider", "slot": 3},
-    {"mode": "OVR", "type": "pick_side", "team": "A", "slot": 3},
-]
-
 FLOW_BO3 = [
     {"mode": "HP", "type": "ban", "team": "A"},
     {"mode": "HP", "type": "ban", "team": "B"},
@@ -68,10 +47,14 @@ FLOW_BO3 = [
     {"mode": "SnD", "type": "ban", "team": "A"},
     {"mode": "SnD", "type": "pick_map", "team": "B", "slot": 2},
     {"mode": "SnD", "type": "pick_side", "team": "A", "slot": 2},
-    {"mode": "OVR", "type": "ban", "team": "A"},
-    {"mode": "OVR", "type": "ban", "team": "B"},
     {"mode": "OVR", "type": "auto_decider", "slot": 3},
-    {"mode": "OVR", "type": "pick_side", "team": "A", "slot": 3},
+]
+
+FLOW_BO5 = FLOW_BO3 + [
+    {"mode": "HP", "type": "pick_map", "team": "B", "slot": 4},
+    {"mode": "HP", "type": "pick_side", "team": "A", "slot": 4},
+    {"mode": "SnD", "type": "pick_map", "team": "A", "slot": 5},
+    {"mode": "SnD", "type": "pick_side", "team": "B", "slot": 5},
 ]
 
 # =========================
@@ -105,19 +88,6 @@ async def websocket_handler(request):
     return ws
 
 app.add_routes(routes)
-
-async def auto_decider(state):
-    while state["step"] < len(state["flow"]):
-        step = state["flow"][state["step"]]
-        if step["type"] != "auto_decider":
-            return
-        free_maps = [k for k, m in state["maps"].items() if m["mode"] == step["mode"] and m["status"] == "free"]
-        if len(free_maps) != 1:
-            return
-        key = free_maps[0]
-        state["maps"][key].update({"status": "picked", "team": "DECIDER", "slot": step["slot"]})
-        state["step"] += 1
-        state["turn_started_at"] = asyncio.get_event_loop().time()
 
 async def ws_broadcast(match_id):
     state = MATCHES.get(int(match_id))
@@ -155,30 +125,33 @@ def build_maps():
         maps[f"OVR::{m}"] = {"mode": "OVR", "status": "free", "team": None, "slot": None, "side": None}
     return maps
 
-def user_can_interact(interaction, state, step):
-    if any(r.name.lower() == ARBITRO_ROLE_NAME.lower() for r in interaction.user.roles):
-        return True
-    if not step.get("team"):
-        return False
-    return any(
-        r.id == state["teams"][step["team"]]["role_id"]
-        for r in interaction.user.roles
-    )
+def required_wins(mode):
+    return 2 if mode == "BO3" else 3
+
+def check_series_winner(state):
+    wins = {"A": 0, "B": 0}
+    for r in state["map_results"].values():
+        wins[r["winner"]] += 1
+
+    for team, w in wins.items():
+        if w >= required_wins(state["mode"]):
+            state["winner"] = team
+            return True
+    return False
 
 # =========================
 # START COMMAND
 # =========================
 @bot.command()
 async def start(ctx, teamA: discord.Role, teamB: discord.Role):
-    loop = asyncio.get_event_loop()
-
     MATCHES[ctx.channel.id] = {
         "flow": [],
         "step": 0,
         "maps": build_maps(),
         "map_results": {},
         "mode": None,
-        "turn_started_at": loop.time(),
+        "winner": None,
+        "turn_started_at": time.time(),
         "turn_duration": TURN_TIME_SECONDS,
         "teams": {
             "A": {"name": teamA.name, "role_id": teamA.id, "ready": False},
@@ -186,7 +159,7 @@ async def start(ctx, teamA: discord.Role, teamB: discord.Role):
         }
     }
 
-    overlay_url = f"{APP_URL}overlay.html?match={ctx.channel.id}"
+    overlay_url = f"{APP_URL}/overlay.html?match={ctx.channel.id}"
 
     view = discord.ui.View(timeout=None)
     view.add_item(ReadyButton(ctx.channel.id, "A"))
@@ -200,12 +173,11 @@ async def start(ctx, teamA: discord.Role, teamB: discord.Role):
         ),
         view=view
     )
-
     await ctx.send(f"🎥 **Overlay OBS:**\n{overlay_url}")
     await ws_broadcast(str(ctx.channel.id))
 
 # =========================
-# READY / BO SELECT
+# READY + MODE
 # =========================
 class ReadyButton(discord.ui.Button):
     def __init__(self, channel_id, team):
@@ -214,13 +186,12 @@ class ReadyButton(discord.ui.Button):
         self.team = team
 
     async def callback(self, interaction):
-        await interaction.response.defer(ephemeral=True)
-
         state = MATCHES[self.channel_id]
         if not any(r.id == state["teams"][self.team]["role_id"] for r in interaction.user.roles):
-            return
+            return await interaction.response.send_message("⛔ No es tu equipo", ephemeral=True)
 
         state["teams"][self.team]["ready"] = True
+        await interaction.response.send_message("✅ Confirmado", ephemeral=True)
 
         if all(t["ready"] for t in state["teams"].values()):
             await show_bo_selector(interaction.channel, self.channel_id)
@@ -238,104 +209,41 @@ class ModeButton(discord.ui.Button):
         self.mode = mode
 
     async def callback(self, interaction):
-        await interaction.response.defer(ephemeral=True)
-
         if not any(r.name.lower() == ARBITRO_ROLE_NAME.lower() for r in interaction.user.roles):
-            return
+            return await interaction.response.send_message("⛔ Solo árbitro", ephemeral=True)
 
         state = MATCHES[self.channel_id]
         state["mode"] = self.mode
         state["flow"] = FLOW_BO3 if self.mode == "BO3" else FLOW_BO5
         state["step"] = 0
-        state["turn_started_at"] = asyncio.get_event_loop().time()
+        state["turn_started_at"] = time.time()
 
+        await interaction.response.send_message(f"🎮 {self.mode} seleccionado", ephemeral=True)
         await interaction.channel.send(
-            embed=build_embed(state),
+            embed=discord.Embed(title="Pick & Ban iniciado"),
             view=PickBanView(self.channel_id)
         )
         await ws_broadcast(str(self.channel_id))
 
 # =========================
-# PICK & BAN VIEW
+# RESULTS UI
 # =========================
 class PickBanView(discord.ui.View):
     def __init__(self, channel_id):
         super().__init__(timeout=None)
         state = MATCHES[channel_id]
 
-        if state["step"] >= len(state["flow"]):
-            for slot in sorted(m["slot"] for m in state["maps"].values() if m["status"] == "picked"):
-                self.add_item(ResultButton(channel_id, slot))
-            return
+        # Mostrar botones de resultado SOLO en orden
+        picked_slots = sorted(
+            m["slot"] for m in state["maps"].values()
+            if m["status"] == "picked"
+        )
 
-        step = state["flow"][state["step"]]
+        next_slot = len(state["map_results"]) + 1
 
-        if step["type"] in ("ban", "pick_map"):
-            for k, m in state["maps"].items():
-                if m["mode"] == step["mode"] and m["status"] == "free":
-                    self.add_item(MapButton(channel_id, k))
-        elif step["type"] == "pick_side":
-            self.add_item(SideButton(channel_id, "JSOC"))
-            self.add_item(SideButton(channel_id, "HERMANDAD"))
+        if next_slot in picked_slots and not state.get("winner"):
+            self.add_item(ResultButton(channel_id, next_slot))
 
-class MapButton(discord.ui.Button):
-    def __init__(self, channel_id, map_key):
-        super().__init__(label=map_key.split("::")[1], style=discord.ButtonStyle.secondary)
-        self.channel_id = channel_id
-        self.map_key = map_key
-
-    async def callback(self, interaction):
-        await interaction.response.defer()
-
-        state = MATCHES[self.channel_id]
-        step = state["flow"][state["step"]]
-
-        if not user_can_interact(interaction, state, step):
-            return
-
-        if step["type"] == "ban":
-            state["maps"][self.map_key].update({"status": "banned", "team": step["team"]})
-        else:
-            state["maps"][self.map_key].update({
-                "status": "picked",
-                "team": step["team"],
-                "slot": step["slot"]
-            })
-
-        state["step"] += 1
-        state["turn_started_at"] = asyncio.get_event_loop().time()
-        await auto_decider(state)
-        await ws_broadcast(str(self.channel_id))
-        await interaction.message.edit(embed=build_embed(state), view=PickBanView(self.channel_id))
-
-class SideButton(discord.ui.Button):
-    def __init__(self, channel_id, side):
-        super().__init__(label=side, style=discord.ButtonStyle.primary)
-        self.channel_id = channel_id
-        self.side = side
-
-    async def callback(self, interaction):
-        await interaction.response.defer()
-
-        state = MATCHES[self.channel_id]
-        step = state["flow"][state["step"]]
-
-        if not user_can_interact(interaction, state, step):
-            return
-
-        for m in state["maps"].values():
-            if m["slot"] == step["slot"]:
-                m["side"] = self.side
-
-        state["step"] += 1
-        state["turn_started_at"] = asyncio.get_event_loop().time()
-        await auto_decider(state)
-        await ws_broadcast(str(self.channel_id))
-        await interaction.message.edit(embed=build_embed(state), view=PickBanView(self.channel_id))
-
-# =========================
-# RESULTS
-# =========================
 class ResultButton(discord.ui.Button):
     def __init__(self, channel_id, slot):
         super().__init__(label=f"Resultado M{slot}", style=discord.ButtonStyle.success)
@@ -343,26 +251,43 @@ class ResultButton(discord.ui.Button):
         self.slot = slot
 
     async def callback(self, interaction):
+        if not any(r.name.lower() == ARBITRO_ROLE_NAME.lower() for r in interaction.user.roles):
+            return await interaction.response.send_message("⛔ Solo árbitro", ephemeral=True)
+
         await interaction.response.send_modal(ResultModal(self.channel_id, self.slot))
 
-class ResultModal(discord.ui.Modal, title="Resultado del mapa"):
-    winner = discord.ui.TextInput(label="Ganador (A o B)")
-    score = discord.ui.TextInput(label="Marcador (250-50 / 6-3)")
-
+class ResultModal(discord.ui.Modal):
     def __init__(self, channel_id, slot):
-        super().__init__()
+        super().__init__(title=f"Resultado M{slot}")
         self.channel_id = channel_id
         self.slot = slot
 
+        self.score_a = discord.ui.TextInput(label="Score TEAM A")
+        self.score_b = discord.ui.TextInput(label="Score TEAM B")
+        self.add_item(self.score_a)
+        self.add_item(self.score_b)
+
     async def on_submit(self, interaction):
         state = MATCHES[self.channel_id]
+
+        a = int(self.score_a.value)
+        b = int(self.score_b.value)
+
+        winner = "A" if a > b else "B"
         state["map_results"][self.slot] = {
-            "winner": self.winner.value.upper(),
-            "score": self.score.value
+            "winner": winner,
+            "score": f"{a}-{b}"
         }
 
+        if check_series_winner(state):
+            await interaction.channel.send(
+                f"🏆 **GANADOR: {state['teams'][state['winner']]['name']}**"
+            )
+
+        state["turn_started_at"] = time.time()
         await ws_broadcast(str(self.channel_id))
         await interaction.response.send_message("✅ Resultado guardado", ephemeral=True)
+
 
 # =========================
 # EMBED

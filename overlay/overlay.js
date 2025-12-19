@@ -70,6 +70,12 @@ function startTimer(team) {
   tick();
 }
 
+function getPickedMapsOrdered(state) {
+  return Object.entries(state.maps)
+    .filter(([_, m]) => m.slot != null)
+    .sort((a, b) => a[1].slot - b[1].slot);
+}
+
 /* =========================
    RENDER
 ========================= */
@@ -108,6 +114,12 @@ function render(state) {
     teamBEl.classList.add("active");
     startTimer("B");
   }
+  // WINNER
+  if (state.winner) {
+    estadoEl.textContent = `🏆 GANADOR: ${state.teams[state.winner].name}`;
+    teamAEl.classList.remove("timed");
+    teamBEl.classList.remove("timed");
+  }
 
   modeEl.textContent = step?.mode || "";
   estadoEl.textContent = step
@@ -117,9 +129,8 @@ function render(state) {
   /* =========================
      MAPAS PICKED (orden por slot)
   ========================= */
-  const picked = Object.entries(state.maps)
-    .filter(([_, m]) => m.status === "picked")
-    .sort((a, b) => a[1].slot - b[1].slot);
+  const picked = getPickedMapsOrdered(state);
+
 
   /* =========================
      TOP MAPS (mientras NO ha terminado el flujo)
