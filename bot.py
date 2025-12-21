@@ -60,8 +60,7 @@ BASE_FLOW = [
     {"mode": "SnD", "type": "pick_side",  "team": "A", "slot": 2},
 
     {"mode": "OVR", "type": "ban",        "team": "A"},
-    {"mode": "OVR", "type": "ban",        "team": "B"},
-    {"mode": "OVR", "type": "auto_decider", "slot": 3},
+    {"mode": "OVR", "type": "pick_map",  "team": "B", "slot": 3},
     {"mode": "OVR", "type": "pick_side",  "team": "A", "slot": 3},
 ]
 
@@ -83,8 +82,8 @@ def build_flow(mode: str):
             {"mode": "HP",  "type": "pick_side", "team": "A", "slot": 4},
             {"mode": "SnD", "type": "pick_map",  "team": "A", "slot": 5},
             {"mode": "SnD", "type": "pick_side", "team": "B", "slot": 5},
-            {"mode": "HP",  "type": "pick_map",  "team": "A", "slot": 6},
-            {"mode": "HP",  "type": "pick_side", "team": "B", "slot": 6},
+            {"mode": "OVR",  "type": "pick_map",  "team": "A", "slot": 6},
+            {"mode": "OVR",  "type": "pick_side", "team": "B", "slot": 6},
             {"mode": "SnD", "type": "pick_map",  "team": "B", "slot": 7},
             {"mode": "SnD", "type": "pick_side", "team": "A", "slot": 7},
         ]
